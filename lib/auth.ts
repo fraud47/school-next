@@ -25,7 +25,7 @@ export const authOptions: AuthOptions = {
           return null;
         }
 
-        const isAdminLogin = identifier === "admin";
+        const isAdminLogin = identifier === "admin@school.local";
         const email = isAdminLogin ? DEFAULT_ADMIN_EMAIL : identifier;
 
         if (isAdminLogin) {

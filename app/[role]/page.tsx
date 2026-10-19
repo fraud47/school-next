@@ -1,7 +1,9 @@
 import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
+import { DashboardOverview } from "@/components/dashboard-overview";
 import { authOptions } from "@/lib/auth";
 import { ROLE_HOME, USER_ROLES, type UserRole } from "@/lib/roles";
+import { getDashboardData } from "@/lib/dashboard-data";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   parent: "Parent",
@@ -12,8 +14,10 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 export default async function RoleDashboard({
   params,
+  searchParams,
 }: {
   params: Promise<{ role: string }>;
+  searchParams: Promise<{ academicYearId?: string }>;
 }) {
   const { role: requestedRole } = await params;
   if (!USER_ROLES.includes(requestedRole as UserRole)) {
@@ -27,6 +31,20 @@ export default async function RoleDashboard({
   }
   if (session.user.role !== role) {
     redirect("/unauthorized");
+  }
+
+  if (role === "admin") {
+    const query = await searchParams;
+    const parsedYearId = Number(query.academicYearId);
+    const selectedYearId = Number.isInteger(parsedYearId) && parsedYearId > 0 ? parsedYearId : undefined;
+    const dashboardData = await getDashboardData(selectedYearId);
+    return (
+      <DashboardOverview
+        isAdmin
+        userName={session.user.name ?? session.user.email ?? "Administrator"}
+        data={dashboardData}
+      />
+    );
   }
 
   return (

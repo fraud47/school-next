@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SchoolBrand } from "@/components/school-brand";
 
 function SignInContent() {
   const router = useRouter();
@@ -66,7 +67,7 @@ function SignInContent() {
               <span className="flex size-11 items-center justify-center rounded-2xl bg-white text-indigo-950">
                 <GraduationCap className="size-6" />
               </span>
-              <span className="text-lg font-semibold tracking-tight">SchoolSpace</span>
+              <SchoolBrand className="text-lg font-semibold tracking-tight" logoClassName="size-8" />
             </Link>
 
             <div className="relative max-w-lg">
@@ -96,7 +97,7 @@ function SignInContent() {
                 <span className="flex size-10 items-center justify-center rounded-xl bg-indigo-950 text-white">
                   <GraduationCap className="size-5" />
                 </span>
-                <span className="font-semibold tracking-tight">SchoolSpace</span>
+                <SchoolBrand className="font-semibold tracking-tight" logoClassName="size-7" />
               </Link>
 
               <div className="mb-8">
@@ -187,7 +188,7 @@ function SignInContent() {
               </div>
 
               <p className="mt-8 text-center text-sm text-slate-500">
-                New to SchoolSpace?{" "}
+                New to your school community?{" "}
                 <Link href="/sign-up" className="font-semibold text-indigo-800 hover:text-indigo-600">
                   Create an account
                 </Link>
