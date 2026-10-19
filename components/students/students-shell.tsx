@@ -11,6 +11,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { AccountDropdown } from "@/components/account-dropdown";
 import { getSchoolSettings } from "@/lib/school-settings";
 
 export async function StudentsShell({
@@ -23,14 +24,6 @@ export async function StudentsShell({
   activeSection?: "students" | "invoices" | "reports" | "settings" | "payments";
 }) {
   const school = await getSchoolSettings();
-  const initials =
-    userName
-      ?.split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "AD";
-
   return (
     <main className="min-h-screen bg-[#f7f9fc] text-slate-800">
       <div className="flex min-h-screen">
@@ -95,8 +88,7 @@ export async function StudentsShell({
               Back to dashboard
             </Link>
             <div className="ml-auto flex items-center gap-2">
-              <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700">{initials}</span>
-              <span className="hidden text-xs font-medium text-slate-600 sm:block">{userName || "Administrator"}</span>
+              <AccountDropdown name={userName || "Administrator"} subtitle="School account" />
             </div>
           </header>
           <div className="mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8 print:max-w-none print:p-0">{children}</div>

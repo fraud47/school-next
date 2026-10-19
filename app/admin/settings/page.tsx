@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { CalendarDays, Check, Clock3, FileText, Layers3, Plus, School, Settings2, Wallet } from "lucide-react";
+import { CalendarDays, Check, Clock3, FileText, Layers3, Plus, School, Settings2, UserCog, Wallet, X } from "lucide-react";
 import { db } from "@/db";
-import { academicYears, feeCatalogItems } from "@/db/schema";
+import { academicYears, feeCatalogItems, users } from "@/db/schema";
 import { AddFeeItemForm } from "@/components/settings/add-fee-item-form";
 import { FeeTemplateForm } from "@/components/settings/fee-template-form";
 import { StudentFeedback } from "@/components/students/student-feedback";
@@ -11,6 +11,8 @@ import { getStudentFormOptions } from "@/lib/student-data";
 import { getFeeTemplateOptions } from "@/lib/invoice-data";
 import { getSchoolSettings } from "@/lib/school-settings";
 import { saveSchoolIdentity } from "@/app/admin/settings/actions";
+import { createManagedUser, deleteManagedUser, updateManagedUser } from "@/app/admin/settings/user-actions";
+import { USER_ROLES } from "@/lib/roles";
 
 function money(value: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(Number(value) || 0);
@@ -33,22 +35,25 @@ function CountCard({ label, value, icon, tone = "indigo" }: { label: string; val
   return <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"><span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${colors[tone]}`}>{icon}</span><div><p className="text-[10px] text-slate-500">{label}</p><p className="mt-0.5 text-lg font-bold text-slate-900">{value}</p></div></div>;
 }
 
+const roleLabels: Record<(typeof USER_ROLES)[number], string> = { admin: "Administrator", accountant: "Accountant", teacher: "Teacher", parent: "Parent" };
+
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; error?: string; notice?: string }> }) {
-  const [session, options, years, feeItems, feeTemplates, school, params] = await Promise.all([
+  const [session, options, years, feeItems, feeTemplates, school, managedUsers, params] = await Promise.all([
     requireAdminSession(),
     getStudentFormOptions(),
     db.select({ id: academicYears.id, name: academicYears.name, startDate: academicYears.startDate, endDate: academicYears.endDate, isCurrent: academicYears.isCurrent }).from(academicYears).orderBy(academicYears.startDate),
     db.select({ id: feeCatalogItems.id, name: feeCatalogItems.name, description: feeCatalogItems.description, amount: feeCatalogItems.defaultAmount }).from(feeCatalogItems).orderBy(feeCatalogItems.name),
     getFeeTemplateOptions(),
     getSchoolSettings(),
+    db.select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt }).from(users).orderBy(users.createdAt),
     searchParams,
   ]);
-  const activeTab = ["classes", "academic-years", "fees", "general"].includes(params.tab || "") ? params.tab! : "fees";
+  const activeTab = ["classes", "academic-years", "fees", "general", "users"].includes(params.tab || "") ? params.tab! : "fees";
 
   return <StudentsShell activeSection="settings" userName={session.user.name}>
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-indigo-600">School administration</p><h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900"><Settings2 className="size-6 text-indigo-600" />Settings</h1><p className="mt-1 text-sm text-slate-500">Manage your school settings, classes, academic years and fee structures.</p></div><Link className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 hover:bg-slate-50" href="/admin/academic/setup"><Settings2 className="size-3.5" />Academic setup</Link></div>
 
-    <nav aria-label="Settings sections" className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200"><Tab active={activeTab === "classes"} href="/admin/settings?tab=classes" icon={<School className="size-4" />}>Classes</Tab><Tab active={activeTab === "academic-years"} href="/admin/settings?tab=academic-years" icon={<CalendarDays className="size-4" />}>Academic Years</Tab><Tab active={activeTab === "fees"} href="/admin/settings?tab=fees" icon={<Layers3 className="size-4" />}>Fees Settings</Tab><Tab active={activeTab === "general"} href="/admin/settings?tab=general" icon={<Settings2 className="size-4" />}>General Settings</Tab></nav>
+    <nav aria-label="Settings sections" className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200"><Tab active={activeTab === "classes"} href="/admin/settings?tab=classes" icon={<School className="size-4" />}>Classes</Tab><Tab active={activeTab === "academic-years"} href="/admin/settings?tab=academic-years" icon={<CalendarDays className="size-4" />}>Academic Years</Tab><Tab active={activeTab === "fees"} href="/admin/settings?tab=fees" icon={<Layers3 className="size-4" />}>Fees Settings</Tab><Tab active={activeTab === "general"} href="/admin/settings?tab=general" icon={<Settings2 className="size-4" />}>General Settings</Tab><Tab active={activeTab === "users"} href="/admin/settings?tab=users" icon={<UserCog className="size-4" />}>User Management</Tab></nav>
     <StudentFeedback error={params.error} notice={params.notice} />
 
     {activeTab === "fees" && <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_280px]" id="fees">
@@ -75,7 +80,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <form action={saveSchoolIdentity} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-xs font-medium text-slate-700">School name <input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" defaultValue={school.name} maxLength={120} name="schoolName" required /></label>
-          <label className="block text-xs font-medium text-slate-700">School email <input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" defaultValue={school.email} maxLength={254} name="schoolEmail" type="email" /></label>
+          <label className="block text-xs font-medium text-slate-700">School email <input autoComplete="off" className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" defaultValue={school.email} inputMode="email" maxLength={254} name="schoolEmail" type="text" /></label>
           <label className="block text-xs font-medium text-slate-700 sm:col-span-2">School address <textarea className="mt-1.5 block min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" defaultValue={school.address} maxLength={300} name="schoolAddress" rows={2} /></label>
         </div>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-100 bg-slate-50/70 p-3">
@@ -86,5 +91,43 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </form>
       <div className="mt-5 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2"><div className="rounded-xl border border-slate-100 p-3"><p className="text-[10px] text-slate-500">Billing currency</p><p className="mt-1 text-sm font-semibold text-slate-800">USD ($)</p></div><div className="rounded-xl border border-slate-100 p-3"><p className="text-[10px] text-slate-500">Date display</p><p className="mt-1 text-sm font-semibold text-slate-800">English · UTC</p></div></div>
     </section>}
+
+    {activeTab === "users" && <div className="mt-4 grid items-start gap-4" id="users">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <SectionHeading icon={<UserCog className="size-4" />} title="Create a user" description="Add a school account and assign its access role." action={null} />
+        <form action={createManagedUser} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-xs font-medium text-slate-700">Full name<input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" maxLength={120} name="name" required /></label>
+          <label className="text-xs font-medium text-slate-700">Email<input autoComplete="off" className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" inputMode="email" maxLength={254} name="email" required type="text" /></label>
+          <label className="text-xs font-medium text-slate-700">Temporary password<input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" autoComplete="new-password" minLength={8} name="password" required type="password" /></label>
+          <label className="text-xs font-medium text-slate-700">Role<select className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" defaultValue="parent" name="role">{USER_ROLES.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></label>
+          <div className="flex items-end"><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700"><Plus className="size-4" />Create user</button></div>
+          <p className="text-[11px] text-slate-500 sm:col-span-2 lg:col-span-5">Passwords must be at least 8 characters. Share the temporary password securely so the user can sign in.</p>
+        </form>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-4 sm:px-5"><h2 className="text-sm font-semibold text-slate-900">School users <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{managedUsers.length}</span></h2><p className="mt-1 text-[11px] text-slate-500">Update account details and roles. A user’s password can be reset from the edit row.</p></div>
+        <div className="divide-y divide-slate-100">
+          {managedUsers.map((user) => {
+            const isCurrentUser = String(user.id) === session.user.id;
+            return <div className="p-4 sm:p-5" key={user.id}>
+              <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1.1fr_1.3fr_1fr_1fr_auto_auto]">
+              <form action={updateManagedUser} className="contents">
+                <input name="id" type="hidden" value={user.id} />
+                <label className="text-xs font-medium text-slate-700">Name<input className="mt-1.5 block h-9 w-full rounded-lg border border-slate-200 px-3 text-sm" defaultValue={user.name ?? ""} maxLength={120} name="name" required /></label>
+                <label className="text-xs font-medium text-slate-700">Email<input autoComplete="off" className="mt-1.5 block h-9 w-full rounded-lg border border-slate-200 px-3 text-sm" defaultValue={user.email} inputMode="email" maxLength={254} name="email" required type="text" /></label>
+                <label className="text-xs font-medium text-slate-700">Role<select className="mt-1.5 block h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-50" defaultValue={user.role} disabled={isCurrentUser} name="role">{USER_ROLES.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select>{isCurrentUser && <input name="role" type="hidden" value="admin" />}</label>
+                <label className="text-xs font-medium text-slate-700">New password <span className="font-normal text-slate-400">(optional)</span><input className="mt-1.5 block h-9 w-full rounded-lg border border-slate-200 px-3 text-sm" autoComplete="new-password" minLength={8} name="password" placeholder="Leave blank to keep current" type="password" /></label>
+                <button className="inline-flex h-9 items-center justify-center rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700">Save</button>
+              </form>
+              {!isCurrentUser && <form action={deleteManagedUser} className="flex"><input name="id" type="hidden" value={user.id} /><button aria-label={`Delete ${user.name || user.email}`} className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 px-3 text-rose-600 hover:bg-rose-50" title="Delete user" type="submit"><X className="size-4" /></button></form>}
+              </div>
+              <p className="mt-2 text-[10px] text-slate-400">{user.email} · {roleLabels[user.role]} · Added {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(user.createdAt)}{isCurrentUser ? " · You cannot change your own role or delete your account" : ""}</p>
+            </div>;
+          })}
+          {!managedUsers.length && <p className="px-4 py-10 text-center text-sm text-slate-500">No user accounts found.</p>}
+        </div>
+      </section>
+    </div>}
   </StudentsShell>;
 }

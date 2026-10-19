@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   BookOpen,
-  ChevronDown,
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard-data";
 import { DashboardAcademicYearSelect } from "@/components/dashboard-academic-year-select";
+import { AccountDropdown } from "@/components/account-dropdown";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -163,12 +163,6 @@ export function DashboardOverview({
   const agingColors = ["bg-emerald-400", "bg-amber-400", "bg-orange-400", "bg-rose-400"];
   const agingTotal = reportData.aging.reduce((total, amount) => total + amount, 0);
   const firstName = userName.split(/\s+/)[0] || "Administrator";
-  const initials = userName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "AD";
   const formattedDate = new Intl.DateTimeFormat("en", {
     weekday: "long",
     month: "long",
@@ -247,16 +241,7 @@ export function DashboardOverview({
               <Link aria-label="View payments" className="relative flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" href="/admin/payments">
                 <CreditCard className="size-4" />
               </Link>
-              <Link className="flex items-center gap-2 rounded-lg p-1 text-left hover:bg-slate-50" href="/admin/settings">
-                <Avatar className="size-7">
-                  <AvatarFallback className="bg-indigo-100 text-[9px] font-semibold text-indigo-700">{initials}</AvatarFallback>
-                </Avatar>
-                <span className="hidden sm:block">
-                  <span className="block max-w-36 truncate text-[10px] font-semibold text-slate-800">{userName}</span>
-                  <span className="block text-[9px] text-slate-500">{isAdmin ? "Admin" : "School overview"}</span>
-                </span>
-                <ChevronDown className="hidden size-3 text-slate-400 sm:block" />
-              </Link>
+              <AccountDropdown name={userName} subtitle={isAdmin ? "Admin" : "School overview"} />
             </div>
           </header>
 

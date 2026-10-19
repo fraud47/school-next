@@ -10,6 +10,9 @@ const notices: Record<string, string> = {
   "invoice-created": "Invoice created successfully.",
   "template-created": "Fee template created and is ready to use on invoices.",
   "school-details-saved": "School identity details saved and applied across the school.",
+  "user-created": "User account created.",
+  "user-updated": "User account updated.",
+  "user-deleted": "User account deleted.",
 };
 
 const errors: Record<string, string> = {
@@ -44,6 +47,12 @@ const errors: Record<string, string> = {
   "invalid-school-details": "Enter a school name and a valid email address.",
   "school-logo-too-large": "The school logo must be smaller than 2 MB.",
   "invalid-school-logo": "Upload a PNG, JPEG, or WebP logo image.",
+  "invalid-user": "Enter valid user details and choose an available role. Passwords must be at least 8 characters.",
+  "duplicate-user-email": "A user with that email address already exists.",
+  "cannot-change-own-role": "You cannot change your own administrator role.",
+  "cannot-delete-self": "You cannot delete your own account.",
+  "last-admin": "The school must keep at least one administrator account.",
+  "user-not-found": "That user account no longer exists.",
 };
 
 export function StudentFeedback({
