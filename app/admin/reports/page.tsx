@@ -5,14 +5,14 @@ import { requireAdminSession } from "@/lib/admin";
 import { getInvoiceList } from "@/lib/invoice-data";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { invoiceItems, invoices, payments, students as studentTable } from "@/db/schema";
+import { expenses, invoiceItems, invoices, payments, students as studentTable } from "@/db/schema";
 
 const reports = [
   { id: "cashbook", name: "Cashbook", description: "Cash received and paid over a selected period.", icon: Banknote },
   { id: "aging", name: "Aging debtors", description: "Unpaid invoices grouped by age as of a selected date.", icon: Clock3 },
   { id: "invoices", name: "Invoices", description: "Issued invoices, amounts, due dates and status.", icon: FileText },
   { id: "statement", name: "Statement", description: "A student account statement from issued invoices.", icon: ReceiptText },
-  { id: "financial", name: "Financial statement", description: "Income, expenses and balances for a period.", icon: ChartNoAxesColumn },
+  { id: "financial", name: "Financial statement", description: "Cash basis fee income, operating expenses and net surplus or deficit.", icon: ChartNoAxesColumn },
 ] as const;
 
 type Invoice = Awaited<ReturnType<typeof getInvoiceList>>[number];
@@ -64,6 +64,70 @@ function PaymentTable({ rows }: { rows: PaymentRow[] }) {
   return <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Receipt</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Invoice</th><th className="px-4 py-3 text-right">Amount in</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map((payment) => <tr key={payment.id}><td className="px-4 py-3 text-xs text-slate-500">{dateLabel(payment.receivedAt)}</td><td className="px-4 py-3 font-mono text-xs text-indigo-700">{payment.reference}</td><td className="px-4 py-3 text-xs font-medium text-slate-800">{payment.firstName} {payment.lastName}</td><td className="px-4 py-3 text-xs capitalize text-slate-600">{payment.method.replaceAll("_", " ")}</td><td className="px-4 py-3 text-xs text-slate-600">{payment.invoiceNumber}</td><td className="px-4 py-3 text-right text-xs font-semibold text-emerald-700">{money(payment.amount)}</td></tr>)}{!rows.length && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={6}>No receipts recorded for this period.</td></tr>}</tbody></table></div>;
 }
 
+function ExpenseTable({ rows }: { rows: (typeof expenses.$inferSelect)[] }) {
+  return <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Vendor</th><th className="px-4 py-3 text-right">Amount out</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map((expense) => <tr key={expense.id}><td className="px-4 py-3 text-xs text-slate-500">{dateLabel(expense.expenseDate)}</td><td className="px-4 py-3 text-xs font-medium text-slate-800">{expense.category}</td><td className="px-4 py-3 text-xs text-slate-600">{expense.description}</td><td className="px-4 py-3 text-xs text-slate-500">{expense.vendor || "—"}</td><td className="px-4 py-3 text-right text-xs font-semibold text-rose-700">{money(expense.amount)}</td></tr>)}{!rows.length && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={5}>No expenses recorded for this period.</td></tr>}</tbody></table></div>;
+}
+
+function ProfitLossReport({
+  income,
+  expensesByCategory,
+  expenseRows,
+  expenseTotal,
+  net,
+  outstanding,
+  feeItemTotals,
+}: {
+  income: number;
+  expensesByCategory: Map<string, number>;
+  expenseRows: (typeof expenses.$inferSelect)[];
+  expenseTotal: number;
+  net: number;
+  outstanding: number;
+  feeItemTotals: Map<string, { billed: number; collected: number }>;
+}) {
+  return (
+    <>
+      <div className="border-b border-indigo-100 bg-indigo-50/60 px-4 py-3 text-xs text-indigo-800">
+        Cash basis profit and loss for the selected period. Income is recorded fee payments; expenses are recorded operating costs.
+      </div>
+      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Fee income received" value={money(income)} tone="green" />
+        <Metric label="Operating expenses" value={money(expenseTotal)} tone="red" />
+        <Metric label={net >= 0 ? "Net operating surplus" : "Net operating deficit"} value={money(Math.abs(net))} tone={net >= 0 ? "blue" : "red"} />
+        <Metric label="Outstanding invoices" value={money(outstanding)} tone="amber" />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px] text-left text-sm">
+          <thead className="bg-slate-50 text-[11px] text-slate-500"><tr><th className="px-4 py-3">Profit &amp; loss item</th><th className="px-4 py-3 text-right">Amount</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">
+            <tr className="bg-emerald-50/40"><td className="px-4 py-3 font-semibold text-slate-800">Fee income received</td><td className="px-4 py-3 text-right font-semibold text-emerald-700">{money(income)}</td></tr>
+            {[...expensesByCategory.entries()].map(([category, amount]) => (
+              <tr key={category}><td className="px-4 py-3 text-slate-700">Operating expense · {category}</td><td className="px-4 py-3 text-right text-rose-700">({money(amount)})</td></tr>
+            ))}
+            {!expensesByCategory.size && <tr><td className="px-4 py-3 text-slate-500" colSpan={2}>No operating expenses recorded in this period.</td></tr>}
+            <tr className="border-t-2 border-slate-200 bg-slate-50">
+              <td className="px-4 py-3 font-bold text-slate-900">Net operating {net >= 0 ? "surplus" : "deficit"}</td>
+              <td className={`px-4 py-3 text-right font-bold ${net >= 0 ? "text-indigo-700" : "text-rose-700"}`}>{net < 0 ? `(${money(Math.abs(net))})` : money(net)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Recorded expenses</h3>
+      <ExpenseTable rows={expenseRows} />
+      <details className="border-t border-slate-100">
+        <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-slate-700">View billed and collected amounts by fee item</summary>
+        <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
+          <thead className="bg-slate-50 text-[11px] text-slate-500"><tr><th className="px-4 py-3">Fee item</th><th className="px-4 py-3 text-right">Billed</th><th className="px-4 py-3 text-right">Collected</th><th className="px-4 py-3 text-right">Outstanding</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">
+            {[...feeItemTotals.entries()].map(([name, values]) => <tr key={name}><td className="px-4 py-3 font-medium text-slate-800">{name}</td><td className="px-4 py-3 text-right">{money(values.billed)}</td><td className="px-4 py-3 text-right text-emerald-700">{money(values.collected)}</td><td className="px-4 py-3 text-right text-amber-700">{money(values.billed - values.collected)}</td></tr>)}
+            {!feeItemTotals.size && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={4}>No fee items were billed in this period.</td></tr>}
+          </tbody>
+        </table></div>
+      </details>
+    </>
+  );
+}
+
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ report?: string; q?: string; from?: string; to?: string; asOf?: string }> }) {
   const [session, params, allInvoices] = await Promise.all([
     requireAdminSession(),
@@ -100,6 +164,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     return date >= from && date <= to && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.invoiceNumber} ${payment.reference}`.toLowerCase().includes(query));
   });
   const receivedInPeriod = paymentsInPeriod.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const expenseRows = await db.select().from(expenses)
+    .where(and(gte(expenses.expenseDate, from), lte(expenses.expenseDate, to)))
+    .orderBy(asc(expenses.expenseDate), asc(expenses.id));
+  const expensesInPeriod = expenseRows.filter((expense) => !query || `${expense.category} ${expense.description} ${expense.vendor ?? ""} ${expense.reference ?? ""}`.toLowerCase().includes(query));
+  const expenseTotal = expensesInPeriod.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const operatingSurplus = receivedInPeriod - expenseTotal;
+  const expenseTotalsByCategory = new Map<string, number>();
+  for (const expense of expensesInPeriod) expenseTotalsByCategory.set(expense.category, (expenseTotalsByCategory.get(expense.category) ?? 0) + Number(expense.amount));
   const paidByInvoice = new Map<number, number>();
   for (const payment of paymentRows) paidByInvoice.set(payment.invoiceId, (paidByInvoice.get(payment.invoiceId) ?? 0) + Number(payment.amount));
   const periodPaidByInvoice = new Map<number, number>();
@@ -190,8 +262,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       {selected.id === "invoices" && <><div className="grid gap-3 p-4 sm:grid-cols-3"><Metric label="Billed" value={money(billed)} tone="blue" /><Metric label="Received" value={money(paid)} tone="green" /><Metric label="Outstanding" value={money(balance)} tone="amber" /></div><InvoiceTable invoices={searchedInvoices} /></>}
       {selected.id === "statement" && <><div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3 text-xs text-slate-500">Opening and closing balances use recorded payments and invoice balances. Older invoices marked paid before receipting was added are treated as settled.</div><div className="grid gap-3 p-4 sm:grid-cols-4"><Metric label="Opening balance" value={money(statementRows.reduce((sum, row) => sum + row.opening, 0))} tone="slate" /><Metric label="Billed" value={money(statementRows.reduce((sum, row) => sum + row.billed, 0))} tone="blue" /><Metric label="Received" value={money(statementRows.reduce((sum, row) => sum + row.received, 0))} tone="green" /><Metric label="Closing balance" value={money(statementRows.reduce((sum, row) => sum + row.closing, 0))} tone="amber" /></div><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] text-slate-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Opening</th><th className="px-4 py-3">Billed</th><th className="px-4 py-3">Received</th><th className="px-4 py-3">Closing</th></tr></thead><tbody className="divide-y divide-slate-100">{statementRows.map((row) => <tr key={row.id}><td className="px-4 py-3"><Link className="font-medium text-indigo-700" href={`/admin/students/${row.id}`}>{row.name}</Link><span className="block text-xs text-slate-400">{row.admission}</span></td><td className="px-4 py-3">{money(row.opening)}</td><td className="px-4 py-3">{money(row.billed)}</td><td className="px-4 py-3 text-emerald-700">{money(row.received)}</td><td className="px-4 py-3 font-semibold">{money(row.closing)}</td></tr>)}{!statementRows.length && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={5}>No student statements for this period.</td></tr>}</tbody></table></div></>}
       {selected.id === "aging" && <div className="p-4 sm:p-5"><p className="mb-4 text-xs text-slate-500">As of {dateLabel(asOf)} · Unpaid balances are aged from invoice date.</p><div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><Metric label="Total outstanding" value={money(agedInvoices.reduce((sum, invoice) => sum + Number(invoice.amount), 0))} tone="red" />{buckets.map((bucket) => <Metric key={bucket.label} label={bucket.label} value={money(bucket.invoices.reduce((sum, invoice) => sum + Number(invoice.amount), 0))} tone="slate" />)}</div><InvoiceTable invoices={agedInvoices} /></div>}
-      {selected.id === "cashbook" && <><div className="border-b border-slate-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-800">Cashbook entries are recorded payment receipts. Expense transactions are not recorded in the app.</div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Money in" value={money(receivedInPeriod)} tone="green" /><Metric label="Money out" value="Not tracked" tone="red" /><Metric label="Net" value="Unavailable" tone="slate" /><Metric label="Transactions" value={String(paymentsInPeriod.length)} tone="blue" /></div><PaymentTable rows={paymentsInPeriod} /></>}
-      {selected.id === "financial" && <><div className="border-b border-slate-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-800">Collected amounts use recorded payments and are shared proportionally across invoice fee items. Expense transactions are not recorded.</div><div className="grid gap-3 p-4 sm:grid-cols-3"><Metric label="Billed" value={money(billed)} tone="blue" /><Metric label="Received in period" value={money(receivedInPeriod)} tone="green" /><Metric label="Outstanding on period invoices" value={money(balance)} tone="amber" /></div><div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm"><thead className="bg-slate-50 text-[11px] text-slate-500"><tr><th className="px-4 py-3">Fee item</th><th className="px-4 py-3 text-right">Billed</th><th className="px-4 py-3 text-right">Collected</th><th className="px-4 py-3 text-right">Outstanding</th></tr></thead><tbody className="divide-y divide-slate-100">{[...feeItemTotals.entries()].map(([name, values]) => <tr key={name}><td className="px-4 py-3 font-medium text-slate-800">{name}</td><td className="px-4 py-3 text-right">{money(values.billed)}</td><td className="px-4 py-3 text-right text-emerald-700">{money(values.collected)}</td><td className="px-4 py-3 text-right text-amber-700">{money(values.billed - values.collected)}</td></tr>)}{!feeItemTotals.size && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={4}>No fee items were billed in this period.</td></tr>}</tbody></table></div></>}
+      {selected.id === "cashbook" && <><div className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">Cash movement from recorded fee payments and operating expenses.</div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Money in" value={money(receivedInPeriod)} tone="green" /><Metric label="Money out" value={money(expenseTotal)} tone="red" /><Metric label="Net cash movement" value={money(operatingSurplus)} tone={operatingSurplus >= 0 ? "slate" : "red"} /><Metric label="Transactions" value={String(paymentsInPeriod.length + expensesInPeriod.length)} tone="blue" /></div><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Receipts</h3><PaymentTable rows={paymentsInPeriod} /><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Expenses</h3><ExpenseTable rows={expensesInPeriod} /></>}
+      {selected.id === "financial" && <ProfitLossReport income={receivedInPeriod} expensesByCategory={expenseTotalsByCategory} expenseRows={expensesInPeriod} expenseTotal={expenseTotal} net={operatingSurplus} outstanding={balance} feeItemTotals={feeItemTotals} />}
       <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-4 py-3 text-xs text-slate-500"><span>{rangedInvoices.length} invoice records in selected period</span><Link className="inline-flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-800" href="/admin/invoices"><ArrowLeft className="size-3" />Invoices</Link></div>
     </section>
   </StudentsShell>;

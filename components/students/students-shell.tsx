@@ -5,6 +5,7 @@ import {
   CreditCard,
   FileText,
   FileBarChart,
+  Receipt,
   Settings,
   GraduationCap,
   School,
@@ -21,7 +22,7 @@ export async function StudentsShell({
 }: {
   children: ReactNode;
   userName?: string | null;
-  activeSection?: "students" | "invoices" | "reports" | "settings" | "payments";
+  activeSection?: "students" | "invoices" | "reports" | "settings" | "payments" | "expenses";
 }) {
   const school = await getSchoolSettings();
   return (
@@ -61,6 +62,10 @@ export async function StudentsShell({
             <Link aria-current={activeSection === "payments" ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] transition-colors ${activeSection === "payments" ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`} href="/admin/payments">
               <CreditCard className="size-[15px]" />
               Payments
+            </Link>
+            <Link aria-current={activeSection === "expenses" ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] transition-colors ${activeSection === "expenses" ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`} href="/admin/expenses">
+              <Receipt className="size-[15px]" />
+              Expenses
             </Link>
             <Link aria-current={activeSection === "reports" ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] transition-colors ${activeSection === "reports" ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`} href="/admin/reports">
               <FileBarChart className="size-[15px]" />

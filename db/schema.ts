@@ -155,6 +155,19 @@ export const payments = pgTable("payments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const expenses = pgTable("expenses", {
+  id: serial("id").primaryKey(),
+  expenseDate: date("expense_date", { mode: "string" }).notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  vendor: text("vendor"),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  method: paymentMethodEnum("method").notNull(),
+  reference: text("reference"),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const feeCatalogItems = pgTable("fee_catalog_items", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -303,6 +316,8 @@ export type GradeLevel = typeof gradeLevels.$inferSelect;
 export type NewGradeLevel = typeof gradeLevels.$inferInsert;
 export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
+export type Expense = typeof expenses.$inferSelect;
+export type NewExpense = typeof expenses.$inferInsert;
 export type FeeCatalogItem = typeof feeCatalogItems.$inferSelect;
 export type NewFeeCatalogItem = typeof feeCatalogItems.$inferInsert;
 export type InvoiceItem = typeof invoiceItems.$inferSelect;

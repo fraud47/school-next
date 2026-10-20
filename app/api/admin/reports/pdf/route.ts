@@ -2,7 +2,7 @@ import { getInvoiceList } from "@/lib/invoice-data";
 import { requireAdminSession } from "@/lib/admin";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { invoiceItems, invoices, payments, students } from "@/db/schema";
+import { expenses, invoiceItems, invoices, payments, students } from "@/db/schema";
 import { getSchoolSettings } from "@/lib/school-settings";
 
 type ReportId = "cashbook" | "aging" | "invoices" | "statement" | "financial";
@@ -88,6 +88,10 @@ export async function GET(request: Request) {
     const date = payment.receivedAt.toISOString().slice(0, 10);
     return date >= from && date <= to && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.invoiceNumber} ${payment.reference}`.toLowerCase().includes(query));
   });
+  const periodExpenses = await db.select().from(expenses)
+    .where(and(gte(expenses.expenseDate, from), lte(expenses.expenseDate, to)))
+    .orderBy(asc(expenses.expenseDate), asc(expenses.id));
+  const filteredExpenses = periodExpenses.filter((expense) => !query || `${expense.category} ${expense.description} ${expense.vendor ?? ""} ${expense.reference ?? ""}`.toLowerCase().includes(query));
   const periodPaid = new Map<number, number>();
   for (const payment of periodPayments) periodPaid.set(payment.invoiceId, (periodPaid.get(payment.invoiceId) ?? 0) + Number(payment.amount));
   const inRange = all.filter((invoice) => {
@@ -99,11 +103,22 @@ export async function GET(request: Request) {
     return invoice.status !== "cancelled" && invoiceDate <= asOf && paidAmount(invoice) < Number(invoice.amount);
   }).map((invoice) => ({ ...invoice, amount: String(Math.max(0, Number(invoice.amount) - paidAmount(invoice))) }));
   const entries = report === "aging" ? aging : inRange;
-  const title: Record<ReportId, string> = { cashbook: "Cashbook", aging: "Aging Debtors", invoices: "School Invoices", statement: "Student Statements", financial: "Financial Report" };
+  const title: Record<ReportId, string> = { cashbook: "Cashbook", aging: "Aging Debtors", invoices: "School Invoices", statement: "Student Statements", financial: "Profit and Loss Statement" };
   const school = await getSchoolSettings();
   const lines = [school.name, school.address, school.email, title[report], report === "aging" ? `As of ${asOf}` : `Period ${from} to ${to}`, ""].filter(Boolean);
   let total = 0;
   if (report === "financial") {
+    const income = periodPayments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+    const expenseByCategory = new Map<string, number>();
+    for (const expense of filteredExpenses) expenseByCategory.set(expense.category, (expenseByCategory.get(expense.category) ?? 0) + Number(expense.amount));
+    const expenseTotal = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+    const net = income - expenseTotal;
+    lines.push("Cash basis profit and loss", "", `Fee income received: ${amount(String(income))}`, "Operating expenses by category:");
+    for (const [category, value] of expenseByCategory) lines.push(`  ${category}: (${amount(String(value))})`);
+    if (!expenseByCategory.size) lines.push("  No operating expenses recorded.");
+    lines.push(`Total operating expenses: (${amount(String(expenseTotal))})`, `Net operating ${net >= 0 ? "surplus" : "deficit"}: ${net < 0 ? `(${amount(String(Math.abs(net)))})` : amount(String(net))}`, "", "Expense details", "Date | Category | Description | Vendor | Method | Reference | Amount");
+    for (const expense of filteredExpenses) lines.push(`${expense.expenseDate} | ${expense.category} | ${expense.description} | ${expense.vendor ?? "-"} | ${expense.method} | ${expense.reference ?? "-"} | ${amount(expense.amount)}`);
+    lines.push("");
     const items = await db.select({ invoiceId: invoices.id, invoiceAmount: invoices.amount, name: invoiceItems.name, amount: invoiceItems.amount, status: invoices.status })
       .from(invoiceItems).innerJoin(invoices, eq(invoiceItems.invoiceId, invoices.id))
       .where(and(gte(invoices.createdAt, new Date(`${from}T00:00:00.000Z`)), lte(invoices.createdAt, new Date(`${to}T23:59:59.999Z`))));
@@ -124,7 +139,7 @@ export async function GET(request: Request) {
       lines.push(`${name} | ${amount(String(values.billed))} | ${amount(String(values.collected))} | ${amount(String(values.billed - values.collected))}`);
     }
     lines.push("", `Billed total: ${amount(String(total))}`);
-    lines.push("Collections are distributed proportionally by invoice item. Expenses are not recorded.");
+    lines.push("Fee item collections are allocated proportionally across each invoice's items.");
   } else if (report === "statement") {
     const students = new Map<number, { name: string; admission: string; opening: number; billed: number; received: number }>();
     for (const invoice of all) {
@@ -157,12 +172,19 @@ export async function GET(request: Request) {
     }
     lines.push("", `Closing balance total: ${amount(String(total))}`, "Received amounts reflect invoices marked paid; payment dates and partial payments are not stored.");
   } else if (report === "cashbook") {
-    lines.push("Receipt date | Reference | Student | Method | Invoice | Amount in", "-".repeat(90));
+    lines.push("Money in", "Receipt date | Reference | Student | Method | Invoice | Amount in", "-".repeat(90));
     for (const payment of periodPayments) {
       total += Number(payment.amount) || 0;
       lines.push(`${payment.receivedAt.toISOString().slice(0, 10)} | ${payment.reference} | ${payment.firstName} ${payment.lastName} | ${payment.method} | ${payment.invoiceNumber} | ${amount(payment.amount)}`);
     }
-    lines.push("", `Receipt total: ${amount(String(total))}`, "Expense transactions are not recorded by the current system.");
+    const income = total;
+    const expenseTotal = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+    lines.push("", `Money in total: ${amount(String(income))}`, "", "Money out", "Date | Category | Description | Vendor | Method | Reference | Amount out", "-".repeat(90));
+    for (const expense of filteredExpenses) {
+      total += Number(expense.amount) || 0;
+      lines.push(`${expense.expenseDate} | ${expense.category} | ${expense.description} | ${expense.vendor ?? "-"} | ${expense.method} | ${expense.reference ?? "-"} | ${amount(expense.amount)}`);
+    }
+    lines.push("", `Money out total: ${amount(String(expenseTotal))}`, `Net cash movement: ${amount(String(income - expenseTotal))}`);
   } else {
     lines.push("Invoice | Student | Admission | Term | Due date | Amount | Status", "-".repeat(100));
     for (const invoice of entries) {
@@ -183,7 +205,6 @@ export async function GET(request: Request) {
       }
     }
   }
-  if (report === "cashbook" || report === "financial") lines.push("Note: expense transactions are not recorded by the current system.");
   const pdf = makePdf(lines);
   return new Response(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${report}-report.pdf"`, "Cache-Control": "no-store" } });
 }

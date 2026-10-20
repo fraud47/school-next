@@ -118,12 +118,13 @@ function SignInContent() {
                 <CardContent className="px-0">
                   <form onSubmit={handleCredentialsSignIn} className="space-y-5">
                     <div className="space-y-2">
-                      <Label htmlFor="email">Username or email</Label>
+                      <Label htmlFor="loginIdentifier">Username or email</Label>
                       <Input
-                        id="email"
-                        name="email"
+                        id="loginIdentifier"
+                        name="loginIdentifier"
                         type="text"
-                        autoComplete="username"
+                        autoComplete="off"
+                        inputMode="email"
                         placeholder="Enter your username or email"
                         required
                         value={email}

@@ -13,6 +13,7 @@ const notices: Record<string, string> = {
   "user-created": "User account created.",
   "user-updated": "User account updated.",
   "user-deleted": "User account deleted.",
+  "expense-recorded": "Expense recorded and included in the financial reports.",
 };
 
 const errors: Record<string, string> = {
@@ -53,6 +54,7 @@ const errors: Record<string, string> = {
   "cannot-delete-self": "You cannot delete your own account.",
   "last-admin": "The school must keep at least one administrator account.",
   "user-not-found": "That user account no longer exists.",
+  "invalid-expense": "Enter a valid date, category, description, positive amount, and payment method for this expense.",
 };
 
 export function StudentFeedback({

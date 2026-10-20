@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Menu,
   MoreHorizontal,
+  Receipt,
   Search,
   Settings,
   ShieldAlert,
@@ -35,6 +36,7 @@ const navigation = [
   { label: "Students", icon: UsersRound, href: "/admin/students" },
   { label: "Invoices", icon: FileText, href: "/admin/invoices" },
   { label: "Payments", icon: CreditCard, href: "/admin/payments" },
+  { label: "Expenses", icon: Receipt, href: "/admin/expenses" },
   { label: "Debtors", icon: ShieldAlert, href: "/admin/reports?report=aging" },
   { label: "Statements", icon: ClipboardList, href: "/admin/reports?report=statement" },
   { label: "Reports", icon: FileBarChart, href: "/admin/reports" },
@@ -45,6 +47,7 @@ const navigation = [
 const quickActions = [
   { label: "Create invoice", icon: FileText, color: "text-indigo-600 bg-indigo-50", href: "/admin/invoices/new" },
   { label: "Record payment", icon: Wallet, color: "text-emerald-600 bg-emerald-50", href: "/admin/payments" },
+  { label: "Record expense", icon: Receipt, color: "text-rose-600 bg-rose-50", href: "/admin/expenses" },
   { label: "Add student", icon: UsersRound, color: "text-sky-600 bg-sky-50", href: "/admin/students/new" },
   { label: "Generate report", icon: FileBarChart, color: "text-violet-600 bg-violet-50", href: "/admin/reports" },
 ];
