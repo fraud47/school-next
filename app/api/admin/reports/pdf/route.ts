@@ -2,7 +2,7 @@ import { getInvoiceList } from "@/lib/invoice-data";
 import { requireAdminSession } from "@/lib/admin";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { expenses, invoiceItems, invoices, payments, students } from "@/db/schema";
+import { expenses, invoiceItems, invoices, payments, productSales, studentActivityPayments, students } from "@/db/schema";
 import { getSchoolSettings } from "@/lib/school-settings";
 
 type ReportId = "cashbook" | "aging" | "invoices" | "statement" | "financial";
@@ -76,6 +76,8 @@ export async function GET(request: Request) {
   const to = dateParam("to", today);
   const asOf = dateParam("asOf", today);
   const query = url.searchParams.get("q")?.trim().toLowerCase();
+  const studentIdValue = url.searchParams.get("studentId") || "";
+  const studentIdFilter = /^\d+$/.test(studentIdValue) ? Number(studentIdValue) : undefined;
   const all = await getInvoiceList({}, { limit: 5000, offset: 0 });
   const paymentRows = await db.select({ id: payments.id, invoiceId: payments.invoiceId, reference: payments.reference, amount: payments.amount, method: payments.method, receivedAt: payments.receivedAt, invoiceNumber: invoices.invoiceNumber, studentId: students.id, firstName: students.firstName, lastName: students.lastName, admissionNumber: students.admissionNumber })
     .from(payments).innerJoin(invoices, eq(payments.invoiceId, invoices.id)).innerJoin(students, eq(invoices.studentId, students.id))
@@ -86,21 +88,30 @@ export async function GET(request: Request) {
   const paidAmount = (invoice: (typeof all)[number]) => paidByInvoice.get(invoice.id) ?? (invoice.status === "paid" ? Number(invoice.amount) : 0);
   const periodPayments = paymentRows.filter((payment) => {
     const date = payment.receivedAt.toISOString().slice(0, 10);
-    return date >= from && date <= to && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.invoiceNumber} ${payment.reference}`.toLowerCase().includes(query));
+    return date >= from && date <= to && (!studentIdFilter || payment.studentId === studentIdFilter) && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.invoiceNumber} ${payment.reference}`.toLowerCase().includes(query));
   });
   const periodExpenses = await db.select().from(expenses)
     .where(and(gte(expenses.expenseDate, from), lte(expenses.expenseDate, to)))
     .orderBy(asc(expenses.expenseDate), asc(expenses.id));
-  const filteredExpenses = periodExpenses.filter((expense) => !query || `${expense.category} ${expense.description} ${expense.vendor ?? ""} ${expense.reference ?? ""}`.toLowerCase().includes(query));
+  const filteredExpenses = periodExpenses.filter((expense) => !studentIdFilter && (!query || `${expense.category} ${expense.description} ${expense.vendor ?? ""} ${expense.reference ?? ""}`.toLowerCase().includes(query)));
+  const productSalesRows = await db.select().from(productSales)
+    .where(and(gte(productSales.soldAt, from), lte(productSales.soldAt, to)))
+    .orderBy(asc(productSales.soldAt), asc(productSales.id));
+  const filteredProductSales = productSalesRows.filter((sale) => !studentIdFilter && (!query || `${sale.productName} ${sale.projectName} ${sale.customer ?? ""} ${sale.reference}`.toLowerCase().includes(query)));
+  const activityRows = await db.select({ id: studentActivityPayments.id, studentId: studentActivityPayments.studentId, firstName: students.firstName, lastName: students.lastName, admissionNumber: students.admissionNumber, activity: studentActivityPayments.activity, description: studentActivityPayments.description, amount: studentActivityPayments.amount, method: studentActivityPayments.method, reference: studentActivityPayments.reference, receivedAt: studentActivityPayments.receivedAt })
+    .from(studentActivityPayments).innerJoin(students, eq(studentActivityPayments.studentId, students.id))
+    .where(and(gte(studentActivityPayments.receivedAt, from), lte(studentActivityPayments.receivedAt, to)))
+    .orderBy(asc(studentActivityPayments.receivedAt), asc(studentActivityPayments.id));
+  const filteredActivityPayments = activityRows.filter((payment) => (!studentIdFilter || payment.studentId === studentIdFilter) && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.activity} ${payment.description ?? ""} ${payment.reference}`.toLowerCase().includes(query)));
   const periodPaid = new Map<number, number>();
   for (const payment of periodPayments) periodPaid.set(payment.invoiceId, (periodPaid.get(payment.invoiceId) ?? 0) + Number(payment.amount));
   const inRange = all.filter((invoice) => {
     const date = invoice.invoiceDate instanceof Date ? invoice.invoiceDate.toISOString().slice(0, 10) : String(invoice.invoiceDate).slice(0, 10);
-    return date >= from && date <= to && (!query || `${invoice.studentFirstName} ${invoice.studentLastName} ${invoice.admissionNumber} ${invoice.invoiceNumber}`.toLowerCase().includes(query));
+    return date >= from && date <= to && (!studentIdFilter || invoice.studentId === studentIdFilter) && (!query || `${invoice.studentFirstName} ${invoice.studentLastName} ${invoice.admissionNumber} ${invoice.invoiceNumber}`.toLowerCase().includes(query));
   });
   const aging = all.filter((invoice) => {
     const invoiceDate = invoice.invoiceDate instanceof Date ? invoice.invoiceDate.toISOString().slice(0, 10) : String(invoice.invoiceDate).slice(0, 10);
-    return invoice.status !== "cancelled" && invoiceDate <= asOf && paidAmount(invoice) < Number(invoice.amount);
+    return invoice.status !== "cancelled" && invoiceDate <= asOf && (!studentIdFilter || invoice.studentId === studentIdFilter) && paidAmount(invoice) < Number(invoice.amount);
   }).map((invoice) => ({ ...invoice, amount: String(Math.max(0, Number(invoice.amount) - paidAmount(invoice))) }));
   const entries = report === "aging" ? aging : inRange;
   const title: Record<ReportId, string> = { cashbook: "Cashbook", aging: "Aging Debtors", invoices: "School Invoices", statement: "Student Statements", financial: "Profit and Loss Statement" };
@@ -108,15 +119,27 @@ export async function GET(request: Request) {
   const lines = [school.name, school.address, school.email, title[report], report === "aging" ? `As of ${asOf}` : `Period ${from} to ${to}`, ""].filter(Boolean);
   let total = 0;
   if (report === "financial") {
-    const income = periodPayments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+    const feeIncome = periodPayments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+    const activityIncome = filteredActivityPayments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+    const salesByProject = new Map<string, number>();
+    for (const sale of filteredProductSales) salesByProject.set(sale.projectName, (salesByProject.get(sale.projectName) ?? 0) + Number(sale.amount));
+    const projectIncome = filteredProductSales.reduce((sum, sale) => sum + (Number(sale.amount) || 0), 0);
+    const income = feeIncome + activityIncome + projectIncome;
     const expenseByCategory = new Map<string, number>();
     for (const expense of filteredExpenses) expenseByCategory.set(expense.category, (expenseByCategory.get(expense.category) ?? 0) + Number(expense.amount));
     const expenseTotal = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
     const net = income - expenseTotal;
-    lines.push("Cash basis profit and loss", "", `Fee income received: ${amount(String(income))}`, "Operating expenses by category:");
+    lines.push("Cash basis profit and loss", "", `Invoice fee income received: ${amount(String(feeIncome))}`, `Student activity payments: ${amount(String(activityIncome))}`);
+    for (const [project, value] of salesByProject) lines.push(`Project sales - ${project}: ${amount(String(value))}`);
+    if (!salesByProject.size) lines.push("No school project sales recorded.");
+    lines.push(`Total income: ${amount(String(income))}`, "Operating expenses by category:");
     for (const [category, value] of expenseByCategory) lines.push(`  ${category}: (${amount(String(value))})`);
     if (!expenseByCategory.size) lines.push("  No operating expenses recorded.");
-    lines.push(`Total operating expenses: (${amount(String(expenseTotal))})`, `Net operating ${net >= 0 ? "surplus" : "deficit"}: ${net < 0 ? `(${amount(String(Math.abs(net)))})` : amount(String(net))}`, "", "Expense details", "Date | Category | Description | Vendor | Method | Reference | Amount");
+    lines.push(`Total operating expenses: (${amount(String(expenseTotal))})`, `Net operating ${net >= 0 ? "surplus" : "deficit"}: ${net < 0 ? `(${amount(String(Math.abs(net)))})` : amount(String(net))}`, "", "Product sale details", "Date | Receipt | Product | Project | Qty | Customer | Amount");
+    for (const sale of filteredProductSales) lines.push(`${sale.soldAt} | ${sale.reference} | ${sale.productName} | ${sale.projectName} | ${sale.quantity} | ${sale.customer ?? "Walk-in"} | ${amount(sale.amount)}`);
+    lines.push("", "Student activity payment details", "Date | Receipt | Student | Admission | Activity | Method | Amount");
+    for (const payment of filteredActivityPayments) lines.push(`${payment.receivedAt} | ${payment.reference} | ${payment.firstName} ${payment.lastName} | ${payment.admissionNumber} | ${payment.activity} | ${payment.method} | ${amount(payment.amount)}`);
+    lines.push("", "Expense details", "Date | Category | Description | Vendor | Method | Reference | Amount");
     for (const expense of filteredExpenses) lines.push(`${expense.expenseDate} | ${expense.category} | ${expense.description} | ${expense.vendor ?? "-"} | ${expense.method} | ${expense.reference ?? "-"} | ${amount(expense.amount)}`);
     lines.push("");
     const items = await db.select({ invoiceId: invoices.id, invoiceAmount: invoices.amount, name: invoiceItems.name, amount: invoiceItems.amount, status: invoices.status })
@@ -177,7 +200,22 @@ export async function GET(request: Request) {
       total += Number(payment.amount) || 0;
       lines.push(`${payment.receivedAt.toISOString().slice(0, 10)} | ${payment.reference} | ${payment.firstName} ${payment.lastName} | ${payment.method} | ${payment.invoiceNumber} | ${amount(payment.amount)}`);
     }
-    const income = total;
+    const feeIncome = total;
+    lines.push("", "Student activity payments", "Date | Receipt | Student | Admission | Activity | Method | Amount", "-".repeat(90));
+    let activityIncome = 0;
+    for (const payment of filteredActivityPayments) {
+      const value = Number(payment.amount) || 0;
+      total += value;
+      activityIncome += value;
+      lines.push(`${payment.receivedAt} | ${payment.reference} | ${payment.firstName} ${payment.lastName} | ${payment.admissionNumber} | ${payment.activity} | ${payment.method} | ${amount(payment.amount)}`);
+    }
+    const productIncome = filteredProductSales.reduce((sum, sale) => sum + (Number(sale.amount) || 0), 0);
+    lines.push("", "School project sales", "Date | Receipt | Product | Project | Qty | Customer | Amount", "-".repeat(90));
+    for (const sale of filteredProductSales) {
+      total += Number(sale.amount) || 0;
+      lines.push(`${sale.soldAt} | ${sale.reference} | ${sale.productName} | ${sale.projectName} | ${sale.quantity} | ${sale.customer ?? "Walk-in"} | ${amount(sale.amount)}`);
+    }
+    const income = feeIncome + activityIncome + productIncome;
     const expenseTotal = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
     lines.push("", `Money in total: ${amount(String(income))}`, "", "Money out", "Date | Category | Description | Vendor | Method | Reference | Amount out", "-".repeat(90));
     for (const expense of filteredExpenses) {

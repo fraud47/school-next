@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Download, FileText, Filter, Plus, Search, Wallet } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileStack, FileText, Filter, Plus, Search, Wallet } from "lucide-react";
 import { StudentFeedback } from "@/components/students/student-feedback";
 import { StudentsShell } from "@/components/students/students-shell";
 import { requireAdminSession } from "@/lib/admin";
@@ -132,6 +132,7 @@ export default async function InvoicesPage({
             <option value="all">All terms</option>
             {availableTerms.map((term) => <option key={term.id} value={term.id}>{term.name}</option>)}
           </select>
+          <Link className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50" href="/admin/invoices/bulk"><FileStack className="size-4" />Bulk invoices</Link>
           <Link className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700" href="/admin/invoices/new"><Plus className="size-4" />Add invoice</Link>
         </div>
       </div>

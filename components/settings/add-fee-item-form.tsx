@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { createFeeCatalogItem } from "@/app/admin/invoices/actions";
+import { toast } from "react-toastify";
 
 export function AddFeeItemForm() {
   const [name, setName] = useState("");
@@ -14,19 +15,24 @@ export function AddFeeItemForm() {
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    const toastId = toast.loading("Adding fee item…");
     startTransition(async () => {
       try {
         const result = await createFeeCatalogItem(name, description, amount);
         if (!result.ok) {
           setMessage(result.error);
+          toast.update(toastId, { render: result.error, type: "error", isLoading: false, autoClose: 5000 });
           return;
         }
         setName("");
         setDescription("");
         setAmount("");
         setMessage(result.alreadyExists ? "A fee with that name already exists." : "Fee item added.");
+        toast.update(toastId, { render: result.alreadyExists ? "Fee already exists." : "Fee item added.", type: "success", isLoading: false, autoClose: 3500 });
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Could not add fee item.");
+        const message = error instanceof Error ? error.message : "Could not add fee item.";
+        setMessage(message);
+        toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 5000 });
       }
     });
   }

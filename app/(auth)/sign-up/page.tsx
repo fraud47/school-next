@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SchoolBrand } from "@/components/school-brand";
+import { toast } from "react-toastify";
 
 type SignUpRole = "parent" | "teacher" | "accountant";
 
@@ -29,6 +30,7 @@ function SignUpContent() {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    const toastId = toast.loading("Creating your account…");
 
     try {
       const response = await fetch("/api/auth/register", {
@@ -38,7 +40,9 @@ function SignUpContent() {
       });
       const result: { error?: string } = await response.json();
       if (!response.ok) {
-        setError(result.error || "Unable to create your account. Please try again.");
+        const message = result.error || "Unable to create your account. Please try again.";
+        setError(message);
+        toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 5000 });
         return;
       }
 
@@ -49,12 +53,17 @@ function SignUpContent() {
         redirect: false,
       });
       if (signInResult?.error || !signInResult?.url) {
-        setError("Your account was created. Please sign in with your new credentials.");
+        const message = "Your account was created. Please sign in with your new credentials.";
+        setError(message);
+        toast.update(toastId, { render: message, type: "success", isLoading: false, autoClose: 5000 });
         return;
       }
+      toast.update(toastId, { render: "Account created successfully.", type: "success", isLoading: false, autoClose: 1800 });
       router.push(signInResult.url);
     } catch {
-      setError("Unable to create your account right now. Please try again.");
+      const message = "Unable to create your account right now. Please try again.";
+      setError(message);
+      toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 5000 });
     } finally {
       setIsSubmitting(false);
     }
@@ -63,6 +72,7 @@ function SignUpContent() {
   const handleOAuthSignUp = (provider: "google" | "github") => {
     setOauthLoading(provider);
     setError(null);
+    toast.loading(`Connecting to ${provider}…`, { toastId: "oauth-sign-up", autoClose: false });
     void signIn(provider, { callbackUrl });
   };
 

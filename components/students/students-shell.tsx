@@ -6,6 +6,7 @@ import {
   FileText,
   FileBarChart,
   Receipt,
+  Store,
   Settings,
   GraduationCap,
   School,
@@ -22,7 +23,7 @@ export async function StudentsShell({
 }: {
   children: ReactNode;
   userName?: string | null;
-  activeSection?: "students" | "invoices" | "reports" | "settings" | "payments" | "expenses";
+  activeSection?: "students" | "classes" | "invoices" | "reports" | "settings" | "payments" | "expenses" | "products";
 }) {
   const school = await getSchoolSettings();
   return (
@@ -47,7 +48,7 @@ export async function StudentsShell({
               <UsersRound className="size-[15px]" />
               Students
             </Link>
-            <Link className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900" href="/admin/academic/setup#class">
+            <Link aria-current={activeSection === "classes" ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] transition-colors ${activeSection === "classes" ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`} href="/admin/classes">
               <School className="size-[15px]" />
               Classes
             </Link>
@@ -66,6 +67,10 @@ export async function StudentsShell({
             <Link aria-current={activeSection === "expenses" ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] transition-colors ${activeSection === "expenses" ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`} href="/admin/expenses">
               <Receipt className="size-[15px]" />
               Expenses
+            </Link>
+            <Link aria-current={activeSection === "products" ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] transition-colors ${activeSection === "products" ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`} href="/admin/products">
+              <Store className="size-[15px]" />
+              Projects &amp; sales
             </Link>
             <Link aria-current={activeSection === "reports" ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] transition-colors ${activeSection === "reports" ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"}`} href="/admin/reports">
               <FileBarChart className="size-[15px]" />

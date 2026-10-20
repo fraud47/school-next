@@ -7,6 +7,7 @@ import {
   createTerm,
 } from "@/app/admin/academic/actions";
 import { StudentFeedback } from "@/components/students/student-feedback";
+import { AlertDialogForm } from "@/components/forms/alert-dialog-form";
 import { StudentsShell } from "@/components/students/students-shell";
 import { requireAdminSession } from "@/lib/admin";
 import { getStudentFormOptions } from "@/lib/student-data";
@@ -40,7 +41,7 @@ export default async function AcademicSetupPage({
 
       <div className="grid gap-5 xl:grid-cols-2">
         <SetupCard id="academic-year" icon={<CalendarDays className="size-5" />} title="Academic year" description="Set the name and dates for a school year.">
-          <form action={createAcademicYear} className="space-y-4">
+          <AlertDialogForm title="Add academic year" description="Set the name and dates for a school year." triggerLabel="Add academic year"><form action={createAcademicYear} className="space-y-4">
             <TextField label="Name" name="name" placeholder="2026–2027" required />
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField label="Start date" name="startDate" required type="date" />
@@ -51,12 +52,12 @@ export default async function AcademicSetupPage({
               Set as current academic year
             </label>
             <SubmitButton>Add academic year</SubmitButton>
-          </form>
+          </form></AlertDialogForm>
           <OptionList items={options.academicYearOptions.map((item) => item.name)} empty="No academic years added." />
         </SetupCard>
 
         <SetupCard id="term" icon={<CalendarDays className="size-5" />} title="Term" description="Terms belong to one academic year and determine placement dates.">
-          <form action={createTerm} className="space-y-4">
+          <AlertDialogForm title="Add term" description="Choose an academic year and set the term dates." triggerLabel="Add term"><form action={createTerm} className="space-y-4">
             <label className="block text-sm font-medium text-slate-700">
               Academic year
               <select className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" name="academicYearId" required>
@@ -70,20 +71,20 @@ export default async function AcademicSetupPage({
               <TextField label="End date" name="endDate" required type="date" />
             </div>
             <SubmitButton>Add term</SubmitButton>
-          </form>
+          </form></AlertDialogForm>
           <OptionList items={options.termOptions.map((item) => `${item.name} · ${item.academicYearName}`)} empty="No terms added." />
         </SetupCard>
 
         <SetupCard id="grade" icon={<GraduationCap className="size-5" />} title="Grade" description="Create grade levels before adding classes.">
-          <form action={createGradeLevel} className="space-y-4">
+          <AlertDialogForm title="Add grade" description="Create a grade level for student placement." triggerLabel="Add grade"><form action={createGradeLevel} className="space-y-4">
             <TextField label="Grade name" name="name" placeholder="Grade 1" required />
             <SubmitButton>Add grade</SubmitButton>
-          </form>
+          </form></AlertDialogForm>
           <OptionList items={options.gradeOptions.map((item) => item.name)} empty="No grades added." />
         </SetupCard>
 
         <SetupCard id="class" icon={<School className="size-5" />} title="Class" description="A class belongs to a grade and academic year.">
-          <form action={createClass} className="space-y-4">
+          <AlertDialogForm title="Add class" description="Create a class under a grade and academic year." triggerLabel="Add class"><form action={createClass} className="space-y-4">
             <TextField label="Class name" name="name" placeholder="1A" required />
             <label className="block text-sm font-medium text-slate-700">
               Grade
@@ -100,7 +101,7 @@ export default async function AcademicSetupPage({
               </select>
             </label>
             <SubmitButton>Add class</SubmitButton>
-          </form>
+          </form></AlertDialogForm>
           <OptionList items={options.classOptions.map((item) => `${item.gradeName} · ${item.name} · ${item.academicYearName}`)} empty="No classes added." />
         </SetupCard>
       </div>

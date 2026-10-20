@@ -2,6 +2,7 @@ import { ArrowLeft, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { createStudent } from "@/app/admin/students/actions";
 import { ClassPlacementFields } from "@/components/students/class-placement-fields";
+import { AlertDialogForm } from "@/components/forms/alert-dialog-form";
 import { StudentFeedback } from "@/components/students/student-feedback";
 import { StudentsShell } from "@/components/students/students-shell";
 import { requireAdminSession } from "@/lib/admin";
@@ -35,7 +36,8 @@ export default async function NewStudentPage({
 
       <StudentFeedback error={params.error} />
 
-      <form action={createStudent} className="max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <AlertDialogForm title="Create student" description="Enter the student details and optional class placement." triggerLabel="Add student">
+      <form action={createStudent} className="grid gap-4 sm:grid-cols-2">
         <section>
           <h2 className="text-base font-semibold text-slate-900">Student information</h2>
           <p className="mt-1 text-sm text-slate-500">Enter the student's legal name and unique admission number.</p>
@@ -47,7 +49,18 @@ export default async function NewStudentPage({
           </div>
         </section>
 
-        <section className="mt-8 border-t border-slate-100 pt-6">
+        <section className="rounded-xl border border-slate-200 p-4 sm:col-span-2">
+          <h2 className="text-base font-semibold text-slate-900">Parent or guardian</h2>
+          <p className="mt-1 text-sm text-slate-500">Optional. Add contact details to link a parent record to this student.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="First name" name="parentFirstName" />
+            <Field label="Last name" name="parentLastName" />
+            <Field label="Email" name="parentEmail" type="email" />
+            <Field label="Phone" name="parentPhone" type="tel" />
+          </div>
+        </section>
+
+        <section className="mt-2 border-t border-slate-100 pt-6 sm:col-span-2">
           <div className="flex items-start gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><GraduationCap className="size-5" /></span>
             <div>
@@ -71,6 +84,7 @@ export default async function NewStudentPage({
           <button className="inline-flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2" type="submit">Create student</button>
         </div>
       </form>
+      </AlertDialogForm>
     </StudentsShell>
   );
 }

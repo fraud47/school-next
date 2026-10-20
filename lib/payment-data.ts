@@ -1,6 +1,6 @@
-import { desc, eq, sum } from "drizzle-orm";
+import { asc, desc, eq, sum } from "drizzle-orm";
 import { db } from "@/db";
-import { invoices, payments, students, terms } from "@/db/schema";
+import { invoices, payments, productSales, products, studentActivityPayments, students, terms } from "@/db/schema";
 import { getInvoiceList } from "@/lib/invoice-data";
 
 export async function getPaymentInvoiceOptions() {
@@ -39,6 +39,31 @@ export async function getRecentPayments(limit = 50) {
     .innerJoin(students, eq(invoices.studentId, students.id))
     .orderBy(desc(payments.receivedAt), desc(payments.id))
     .limit(limit);
+}
+
+export async function getPaymentCenterOptions() {
+  const [studentsList, sellableProducts, recentSales, activityRows] = await Promise.all([
+    db.select({ id: students.id, firstName: students.firstName, lastName: students.lastName, admissionNumber: students.admissionNumber })
+      .from(students).orderBy(asc(students.lastName), asc(students.firstName)),
+    db.select({ id: products.id, name: products.name, projectName: products.projectName, unitPrice: products.unitPrice, stock: products.stock })
+      .from(products).where(eq(products.active, true)).orderBy(asc(products.name)),
+    db.select().from(productSales).orderBy(desc(productSales.soldAt), desc(productSales.id)).limit(50),
+    db.select({
+      id: studentActivityPayments.id,
+      studentId: studentActivityPayments.studentId,
+      firstName: students.firstName,
+      lastName: students.lastName,
+      admissionNumber: students.admissionNumber,
+      activity: studentActivityPayments.activity,
+      description: studentActivityPayments.description,
+      amount: studentActivityPayments.amount,
+      method: studentActivityPayments.method,
+      reference: studentActivityPayments.reference,
+      receivedAt: studentActivityPayments.receivedAt,
+    }).from(studentActivityPayments).innerJoin(students, eq(studentActivityPayments.studentId, students.id))
+      .orderBy(desc(studentActivityPayments.receivedAt), desc(studentActivityPayments.id)).limit(50),
+  ]);
+  return { studentsList, sellableProducts: sellableProducts.filter((product) => product.stock > 0), recentSales, activityRows };
 }
 
 export async function getPaymentReceipt(paymentId: number) {

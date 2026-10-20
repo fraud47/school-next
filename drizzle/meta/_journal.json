@@ -78,6 +78,20 @@
       "when": 1792477059065,
       "tag": "0010_operating_expenses",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792493198583,
+      "tag": "0011_products_and_sales",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792495803203,
+      "tag": "0012_student_activity_payments",
+      "breakpoints": true
     }
   ]
 }

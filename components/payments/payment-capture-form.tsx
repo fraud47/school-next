@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, CreditCard, ReceiptText, RotateCcw } from "lucide-react";
 import { recordPayment } from "@/app/admin/payments/actions";
+import { AlertDialogForm } from "@/components/forms/alert-dialog-form";
 
 type InvoiceOption = {
   id: number;
@@ -56,7 +57,7 @@ export function PaymentCaptureForm({ invoices, receivedDate }: { invoices: Invoi
     setDate(receivedDate);
   }
 
-  return <form action={recordPayment} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,.8fr)]">
+  return <AlertDialogForm title="Record a payment" description="Select a student invoice and record a full or partial payment." triggerLabel="Record payment"><form action={recordPayment} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,.8fr)]">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-5 border-b border-slate-100 pb-3"><h2 className="text-base font-semibold text-slate-900">Payment details</h2><p className="mt-1 text-xs text-slate-500">Record a full or partial payment against a student invoice.</p></div>
       {!invoices.length ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">There are no unpaid invoices to receive payment for.</div> : <>
@@ -75,5 +76,5 @@ export function PaymentCaptureForm({ invoices, receivedDate }: { invoices: Invoi
     <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="mb-4 border-b border-slate-100 pb-3"><h2 className="text-base font-semibold text-slate-900">Student summary</h2><p className="mt-1 text-xs text-slate-500">Invoice balance and payment summary</p></div>
       {selectedInvoice ? <><div className="py-3 text-center"><span className="mx-auto flex size-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><span className="text-sm font-bold">{selectedInvoice.studentFirstName[0]}{selectedInvoice.studentLastName[0]}</span></span><h3 className="mt-3 text-lg font-semibold text-slate-900">{selectedInvoice.studentFirstName} {selectedInvoice.studentLastName}</h3><p className="mt-1 text-sm text-slate-500">Admission No. {selectedInvoice.admissionNumber}</p></div><div className="mt-3 rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Invoice</p><p className="mt-1 text-sm font-semibold text-slate-800">{selectedInvoice.invoiceNumber}</p><p className="text-xs text-slate-500">{selectedInvoice.termName} · {selectedInvoice.academicYearName}</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">Outstanding</span></div><div className="mt-4 space-y-2 border-t border-slate-100 pt-3 text-sm"><div className="flex justify-between"><span className="text-slate-500">Invoice total</span><span>{money(Number(selectedInvoice.amount))}</span></div><div className="flex justify-between"><span className="text-slate-500">Paid so far</span><span className="text-emerald-700">{money(selectedInvoice.paidAmount)}</span></div><div className="flex justify-between border-t border-slate-100 pt-2 font-bold"><span>Remaining balance</span><span className="text-rose-600">{money(selectedInvoice.balance)}</span></div></div></div><div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800"><Check className="size-4" />Receipt amount will be applied to this invoice.</div></> : <div className="flex min-h-56 flex-col items-center justify-center text-center"><span className="flex size-12 items-center justify-center rounded-xl bg-slate-50 text-slate-400"><ReceiptText className="size-5" /></span><p className="mt-3 text-sm font-medium text-slate-700">Select a student and invoice</p><p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">The invoice amount, payments received and current balance will appear here.</p></div>}
     </aside>
-  </form>;
+  </form></AlertDialogForm>;
 }

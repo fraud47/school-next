@@ -16,6 +16,7 @@ import {
   Search,
   Settings,
   ShieldAlert,
+  Store,
   UsersRound,
   Wallet,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const navigation = [
   { label: "Invoices", icon: FileText, href: "/admin/invoices" },
   { label: "Payments", icon: CreditCard, href: "/admin/payments" },
   { label: "Expenses", icon: Receipt, href: "/admin/expenses" },
+  { label: "Projects & sales", icon: Store, href: "/admin/products" },
   { label: "Debtors", icon: ShieldAlert, href: "/admin/reports?report=aging" },
   { label: "Statements", icon: ClipboardList, href: "/admin/reports?report=statement" },
   { label: "Reports", icon: FileBarChart, href: "/admin/reports" },

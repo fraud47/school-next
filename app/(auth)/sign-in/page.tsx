@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SchoolBrand } from "@/components/school-brand";
+import { toast } from "react-toastify";
 
 function SignInContent() {
   const router = useRouter();
@@ -30,6 +31,7 @@ function SignInContent() {
     event.preventDefault();
     setCredentialsLoading(true);
     setError(null);
+    const toastId = toast.loading("Signing in…");
     try {
       const result = await signIn("credentials", {
         email,
@@ -38,12 +40,17 @@ function SignInContent() {
         redirect: false,
       });
       if (result?.error || !result?.url) {
-        setError("The username/email or password is incorrect.");
+        const message = "The username/email or password is incorrect.";
+        setError(message);
+        toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 5000 });
         return;
       }
+      toast.update(toastId, { render: "Signed in successfully.", type: "success", isLoading: false, autoClose: 1800 });
       router.push(result.url);
     } catch {
-      setError("Unable to sign in right now. Please try again.");
+      const message = "Unable to sign in right now. Please try again.";
+      setError(message);
+      toast.update(toastId, { render: message, type: "error", isLoading: false, autoClose: 5000 });
     } finally {
       setCredentialsLoading(false);
     }
@@ -52,6 +59,7 @@ function SignInContent() {
   const handleOAuthSignIn = (provider: "google" | "github") => {
     setOauthLoading(provider);
     setError(null);
+    toast.loading(`Connecting to ${provider}…`, { toastId: "oauth-sign-in", autoClose: false });
     void signIn(provider, { callbackUrl });
   };
 

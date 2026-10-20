@@ -5,7 +5,7 @@ import { requireAdminSession } from "@/lib/admin";
 import { getInvoiceList } from "@/lib/invoice-data";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { expenses, invoiceItems, invoices, payments, students as studentTable } from "@/db/schema";
+import { expenses, invoiceItems, invoices, payments, productSales, studentActivityPayments, students as studentTable } from "@/db/schema";
 
 const reports = [
   { id: "cashbook", name: "Cashbook", description: "Cash received and paid over a selected period.", icon: Banknote },
@@ -17,6 +17,7 @@ const reports = [
 
 type Invoice = Awaited<ReturnType<typeof getInvoiceList>>[number];
 type PaymentRow = { id: number; invoiceId: number; reference: string; amount: string; method: string; receivedAt: Date; invoiceNumber: string; studentId: number; firstName: string; lastName: string; admissionNumber: string };
+type ActivityPaymentRow = { id: number; studentId: number; firstName: string; lastName: string; admissionNumber: string; activity: string; description: string | null; amount: string; method: string; reference: string; receivedAt: string };
 
 function money(value: number | string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(Number(value) || 0);
@@ -68,8 +69,21 @@ function ExpenseTable({ rows }: { rows: (typeof expenses.$inferSelect)[] }) {
   return <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Vendor</th><th className="px-4 py-3 text-right">Amount out</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map((expense) => <tr key={expense.id}><td className="px-4 py-3 text-xs text-slate-500">{dateLabel(expense.expenseDate)}</td><td className="px-4 py-3 text-xs font-medium text-slate-800">{expense.category}</td><td className="px-4 py-3 text-xs text-slate-600">{expense.description}</td><td className="px-4 py-3 text-xs text-slate-500">{expense.vendor || "—"}</td><td className="px-4 py-3 text-right text-xs font-semibold text-rose-700">{money(expense.amount)}</td></tr>)}{!rows.length && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={5}>No expenses recorded for this period.</td></tr>}</tbody></table></div>;
 }
 
+function ProductSalesTable({ rows }: { rows: (typeof productSales.$inferSelect)[] }) {
+  return <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Receipt</th><th className="px-4 py-3">Product / Project</th><th className="px-4 py-3">Customer</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Income</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map((sale) => <tr key={sale.id}><td className="px-4 py-3 text-xs text-slate-500">{dateLabel(sale.soldAt)}</td><td className="px-4 py-3 font-mono text-[10px] text-indigo-700">{sale.reference}</td><td className="px-4 py-3"><span className="block text-xs font-medium">{sale.productName}</span><span className="text-[10px] text-slate-500">{sale.projectName}</span></td><td className="px-4 py-3 text-xs text-slate-600">{sale.customer || "Walk-in"}</td><td className="px-4 py-3 text-right text-xs">{sale.quantity}</td><td className="px-4 py-3 text-right text-xs font-semibold text-emerald-700">{money(sale.amount)}</td></tr>)}{!rows.length && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={6}>No product sales recorded in this period.</td></tr>}</tbody></table></div>;
+}
+
+function ActivityPaymentTable({ rows }: { rows: ActivityPaymentRow[] }) {
+  return <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Receipt</th><th className="px-4 py-3">Student</th><th className="px-4 py-3">Activity</th><th className="px-4 py-3">Method</th><th className="px-4 py-3 text-right">Amount in</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map((payment) => <tr key={payment.id}><td className="px-4 py-3 text-xs text-slate-500">{dateLabel(payment.receivedAt)}</td><td className="px-4 py-3 font-mono text-xs text-indigo-700">{payment.reference}</td><td className="px-4 py-3 text-xs font-medium text-slate-800">{payment.firstName} {payment.lastName} · {payment.admissionNumber}</td><td className="px-4 py-3 text-xs text-slate-600">{payment.activity}</td><td className="px-4 py-3 text-xs capitalize text-slate-600">{payment.method.replaceAll("_", " ")}</td><td className="px-4 py-3 text-right text-xs font-semibold text-emerald-700">{money(payment.amount)}</td></tr>)}{!rows.length && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={6}>No student activity payments recorded for this period.</td></tr>}</tbody></table></div>;
+}
+
 function ProfitLossReport({
-  income,
+  feeIncome,
+  activityIncome,
+  activityRows,
+  projectSales,
+  productRows,
+  totalIncome,
   expensesByCategory,
   expenseRows,
   expenseTotal,
@@ -77,7 +91,12 @@ function ProfitLossReport({
   outstanding,
   feeItemTotals,
 }: {
-  income: number;
+  feeIncome: number;
+  activityIncome: number;
+  activityRows: ActivityPaymentRow[];
+  projectSales: Map<string, number>;
+  productRows: (typeof productSales.$inferSelect)[];
+  totalIncome: number;
   expensesByCategory: Map<string, number>;
   expenseRows: (typeof expenses.$inferSelect)[];
   expenseTotal: number;
@@ -88,10 +107,12 @@ function ProfitLossReport({
   return (
     <>
       <div className="border-b border-indigo-100 bg-indigo-50/60 px-4 py-3 text-xs text-indigo-800">
-        Cash basis profit and loss for the selected period. Income is recorded fee payments; expenses are recorded operating costs.
+        Cash basis profit and loss for the selected period. Income includes invoice fees, student activity collections, and school project sales; expenses are recorded operating costs.
       </div>
-      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Fee income received" value={money(income)} tone="green" />
+      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-6">
+        <Metric label="Fee income" value={money(feeIncome)} tone="green" />
+        <Metric label="Student activities" value={money(activityIncome)} tone="green" />
+        <Metric label="Project sales" value={money(totalIncome - feeIncome - activityIncome)} tone="blue" />
         <Metric label="Operating expenses" value={money(expenseTotal)} tone="red" />
         <Metric label={net >= 0 ? "Net operating surplus" : "Net operating deficit"} value={money(Math.abs(net))} tone={net >= 0 ? "blue" : "red"} />
         <Metric label="Outstanding invoices" value={money(outstanding)} tone="amber" />
@@ -100,7 +121,12 @@ function ProfitLossReport({
         <table className="w-full min-w-[600px] text-left text-sm">
           <thead className="bg-slate-50 text-[11px] text-slate-500"><tr><th className="px-4 py-3">Profit &amp; loss item</th><th className="px-4 py-3 text-right">Amount</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
-            <tr className="bg-emerald-50/40"><td className="px-4 py-3 font-semibold text-slate-800">Fee income received</td><td className="px-4 py-3 text-right font-semibold text-emerald-700">{money(income)}</td></tr>
+            <tr className="bg-emerald-50/40"><td className="px-4 py-3 font-semibold text-slate-800">Fee income received</td><td className="px-4 py-3 text-right font-semibold text-emerald-700">{money(feeIncome)}</td></tr>
+            <tr><td className="px-4 py-3 text-slate-700">Student activity payments</td><td className="px-4 py-3 text-right text-emerald-700">{money(activityIncome)}</td></tr>
+            {[...projectSales.entries()].map(([project, amount]) => (
+              <tr key={project}><td className="px-4 py-3 text-slate-700">Project sales · {project}</td><td className="px-4 py-3 text-right text-emerald-700">{money(amount)}</td></tr>
+            ))}
+            {!projectSales.size && <tr><td className="px-4 py-3 text-slate-500" colSpan={2}>No project sales recorded in this period.</td></tr>}
             {[...expensesByCategory.entries()].map(([category, amount]) => (
               <tr key={category}><td className="px-4 py-3 text-slate-700">Operating expense · {category}</td><td className="px-4 py-3 text-right text-rose-700">({money(amount)})</td></tr>
             ))}
@@ -112,6 +138,10 @@ function ProfitLossReport({
           </tbody>
         </table>
       </div>
+      <h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Product project sales</h3>
+      <ProductSalesTable rows={productRows} />
+      <h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Student activity payments</h3>
+      <ActivityPaymentTable rows={activityRows} />
       <h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Recorded expenses</h3>
       <ExpenseTable rows={expenseRows} />
       <details className="border-t border-slate-100">
@@ -128,7 +158,7 @@ function ProfitLossReport({
   );
 }
 
-export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ report?: string; q?: string; from?: string; to?: string; asOf?: string }> }) {
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ report?: string; q?: string; from?: string; to?: string; asOf?: string; studentId?: string }> }) {
   const [session, params, allInvoices] = await Promise.all([
     requireAdminSession(),
     searchParams,
@@ -141,6 +171,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const from = isIsoDate(params.from) ? params.from! : monthStart;
   const to = isIsoDate(params.to) ? params.to! : today;
   const query = params.q?.trim().toLowerCase();
+  const requestedStudentId = params.studentId && /^\d+$/.test(params.studentId) ? Number(params.studentId) : undefined;
+  const reportStudents = await db.select({ id: studentTable.id, firstName: studentTable.firstName, lastName: studentTable.lastName, admissionNumber: studentTable.admissionNumber })
+    .from(studentTable).orderBy(asc(studentTable.lastName), asc(studentTable.firstName));
+  const studentIdFilter = reportStudents.some((student) => student.id === requestedStudentId) ? requestedStudentId : undefined;
   const maxDate = selected.id === "aging" ? asOf : to;
   const paymentRows = await db.select({
     id: payments.id,
@@ -161,17 +195,42 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     .orderBy(asc(payments.receivedAt), asc(payments.id));
   const paymentsInPeriod = paymentRows.filter((payment) => {
     const date = payment.receivedAt.toISOString().slice(0, 10);
-    return date >= from && date <= to && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.invoiceNumber} ${payment.reference}`.toLowerCase().includes(query));
+    return date >= from && date <= to && (!studentIdFilter || payment.studentId === studentIdFilter) && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.invoiceNumber} ${payment.reference}`.toLowerCase().includes(query));
   });
   const receivedInPeriod = paymentsInPeriod.reduce((sum, payment) => sum + Number(payment.amount), 0);
   const expenseRows = await db.select().from(expenses)
     .where(and(gte(expenses.expenseDate, from), lte(expenses.expenseDate, to)))
     .orderBy(asc(expenses.expenseDate), asc(expenses.id));
-  const expensesInPeriod = expenseRows.filter((expense) => !query || `${expense.category} ${expense.description} ${expense.vendor ?? ""} ${expense.reference ?? ""}`.toLowerCase().includes(query));
+  const expensesInPeriod = expenseRows.filter((expense) => !studentIdFilter && (!query || `${expense.category} ${expense.description} ${expense.vendor ?? ""} ${expense.reference ?? ""}`.toLowerCase().includes(query)));
   const expenseTotal = expensesInPeriod.reduce((sum, expense) => sum + Number(expense.amount), 0);
-  const operatingSurplus = receivedInPeriod - expenseTotal;
+  const productSalesInRange = await db.select().from(productSales)
+    .where(and(gte(productSales.soldAt, from), lte(productSales.soldAt, to)))
+    .orderBy(asc(productSales.soldAt), asc(productSales.id));
+  const productSalesInPeriod = productSalesInRange.filter((sale) => !studentIdFilter && (!query || `${sale.productName} ${sale.projectName} ${sale.customer ?? ""} ${sale.reference}`.toLowerCase().includes(query)));
+  const productSalesTotal = productSalesInPeriod.reduce((sum, sale) => sum + Number(sale.amount), 0);
+  const activityRowsInRange = await db.select({
+    id: studentActivityPayments.id,
+    studentId: studentActivityPayments.studentId,
+    firstName: studentTable.firstName,
+    lastName: studentTable.lastName,
+    admissionNumber: studentTable.admissionNumber,
+    activity: studentActivityPayments.activity,
+    description: studentActivityPayments.description,
+    amount: studentActivityPayments.amount,
+    method: studentActivityPayments.method,
+    reference: studentActivityPayments.reference,
+    receivedAt: studentActivityPayments.receivedAt,
+  }).from(studentActivityPayments).innerJoin(studentTable, eq(studentActivityPayments.studentId, studentTable.id))
+    .where(and(gte(studentActivityPayments.receivedAt, from), lte(studentActivityPayments.receivedAt, to)))
+    .orderBy(asc(studentActivityPayments.receivedAt), asc(studentActivityPayments.id));
+  const activityPaymentsInPeriod = activityRowsInRange.filter((payment) => (!studentIdFilter || payment.studentId === studentIdFilter) && (!query || `${payment.firstName} ${payment.lastName} ${payment.admissionNumber} ${payment.activity} ${payment.description ?? ""} ${payment.reference}`.toLowerCase().includes(query)));
+  const activityIncome = activityPaymentsInPeriod.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const totalIncome = receivedInPeriod + activityIncome + productSalesTotal;
+  const operatingSurplus = totalIncome - expenseTotal;
   const expenseTotalsByCategory = new Map<string, number>();
   for (const expense of expensesInPeriod) expenseTotalsByCategory.set(expense.category, (expenseTotalsByCategory.get(expense.category) ?? 0) + Number(expense.amount));
+  const salesTotalsByProject = new Map<string, number>();
+  for (const sale of productSalesInPeriod) salesTotalsByProject.set(sale.projectName, (salesTotalsByProject.get(sale.projectName) ?? 0) + Number(sale.amount));
   const paidByInvoice = new Map<number, number>();
   for (const payment of paymentRows) paidByInvoice.set(payment.invoiceId, (paidByInvoice.get(payment.invoiceId) ?? 0) + Number(payment.amount));
   const periodPaidByInvoice = new Map<number, number>();
@@ -181,14 +240,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     const invoiceDate = invoice.invoiceDate instanceof Date ? invoice.invoiceDate.toISOString().slice(0, 10) : String(invoice.invoiceDate).slice(0, 10);
     return (!from || invoiceDate >= from) && (!to || invoiceDate <= to);
   };
-  const searchedInvoices = allInvoices.filter(inDateRange).filter((invoice) => !query ||
-    `${invoice.studentFirstName} ${invoice.studentLastName} ${invoice.admissionNumber} ${invoice.invoiceNumber}`.toLowerCase().includes(query),
-  );
-  const rangedInvoices = allInvoices.filter(inDateRange);
+  const searchedInvoices = allInvoices.filter(inDateRange).filter((invoice) => {
+    if (studentIdFilter && invoice.studentId !== studentIdFilter) return false;
+    return !query || `${invoice.studentFirstName} ${invoice.studentLastName} ${invoice.admissionNumber} ${invoice.invoiceNumber}`.toLowerCase().includes(query);
+  });
+  const rangedInvoices = allInvoices.filter(inDateRange).filter((invoice) => !studentIdFilter || invoice.studentId === studentIdFilter);
   const activeRangedInvoices = rangedInvoices.filter((invoice) => invoice.status !== "cancelled");
   const agedInvoices = allInvoices.filter((invoice) => {
     const invoiceDate = invoice.invoiceDate instanceof Date ? invoice.invoiceDate.toISOString().slice(0, 10) : String(invoice.invoiceDate).slice(0, 10);
-    return invoice.status !== "cancelled" && invoiceDate <= asOf && invoicePaid(invoice) < Number(invoice.amount);
+    return invoice.status !== "cancelled" && invoiceDate <= asOf && (!studentIdFilter || invoice.studentId === studentIdFilter) && invoicePaid(invoice) < Number(invoice.amount);
   }).map((invoice) => ({ ...invoice, amount: String(Math.max(0, Number(invoice.amount) - invoicePaid(invoice))) }));
   const buckets = [
     { label: "0–30 days overdue", test: (days: number) => days >= 0 && days <= 30 },
@@ -243,27 +303,28 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     students.set(payment.studentId, row);
   }
   for (const row of students.values()) row.closing = row.opening + row.billed - row.received;
-  const statementRows = [...students.entries()].filter(([id]) => !query || `${students.get(id)?.name} ${students.get(id)?.admission}`.toLowerCase().includes(query)).map(([id, row]) => ({ id, ...row })).filter((row) => row.opening || row.billed || row.received || row.closing);
+  const statementRows = [...students.entries()].filter(([id]) => (!studentIdFilter || id === studentIdFilter) && (!query || `${students.get(id)?.name} ${students.get(id)?.admission}`.toLowerCase().includes(query))).map(([id, row]) => ({ id, ...row })).filter((row) => row.opening || row.billed || row.received || row.closing);
   const pdfQuery = new URLSearchParams({ report: selected.id, from, to, asOf });
   if (params.q) pdfQuery.set("q", params.q);
+  if (studentIdFilter) pdfQuery.set("studentId", String(studentIdFilter));
 
   return <StudentsShell activeSection="reports" userName={session.user.name}>
     <div className="mb-5 flex flex-wrap items-end justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-xs text-slate-400"><Link className="hover:text-indigo-700" href="/admin">⌂</Link><span>›</span><span className="text-slate-600">Reports</span></div><h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Financial Reports</h1><p className="mt-1 text-sm text-slate-500">View and manage financial reports, debtor reports, and school financial insights.</p></div>
-      <form action="/admin/reports" className="flex flex-wrap items-end gap-2" method="get"><input name="report" type="hidden" defaultValue={selected.id} />{selected.id === "aging" ? <label className="text-[10px] font-medium text-slate-500">As of<input className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700" name="asOf" type="date" defaultValue={asOf} /></label> : <><label className="text-[10px] font-medium text-slate-500">From<input className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700" name="from" type="date" defaultValue={from} /></label><label className="text-[10px] font-medium text-slate-500">To<input className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700" name="to" type="date" defaultValue={to} /></label></>}<button className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700" type="submit"><Play className="size-3.5" />Run report</button></form>
+      <form action="/admin/reports" className="flex flex-wrap items-end gap-2" method="get"><input name="report" type="hidden" defaultValue={selected.id} />{selected.id === "aging" ? <label className="text-[10px] font-medium text-slate-500">As of<input className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700" name="asOf" type="date" defaultValue={asOf} /></label> : <><label className="text-[10px] font-medium text-slate-500">From<input className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700" name="from" type="date" defaultValue={from} /></label><label className="text-[10px] font-medium text-slate-500">To<input className="mt-1 block h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700" name="to" type="date" defaultValue={to} /></label></>}{["cashbook", "statement", "invoices"].includes(selected.id) && <label className="text-[10px] font-medium text-slate-500">Student<select className="mt-1 block h-10 min-w-48 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700" defaultValue={studentIdFilter ? String(studentIdFilter) : ""} name="studentId"><option value="">All students</option>{reportStudents.map((student) => <option key={student.id} value={student.id}>{student.admissionNumber} · {student.firstName} {student.lastName}</option>)}</select></label>}<button className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700" type="submit"><Play className="size-3.5" />Run report</button></form>
     </div>
 
     <nav aria-label="Report types" className="mb-0 flex gap-1 overflow-x-auto border-b border-slate-200">{reports.map((report) => { const Icon = report.icon; return <Link key={report.id} aria-current={selected.id === report.id ? "page" : undefined} className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-medium ${selected.id === report.id ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-800"}`} href={`/admin/reports?report=${report.id}`}><Icon className="size-4" />{report.name}</Link>; })}</nav>
 
     <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 sm:p-5"><div><h2 className="text-base font-semibold text-slate-900">{selected.name}</h2><p className="mt-1 text-xs text-slate-500">{selected.description}</p></div><Link className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-800" href={`/api/admin/reports/pdf?${pdfQuery}`}><Download className="size-3.5" />Download PDF</Link>
-        {(selected.id === "statement" || selected.id === "invoices") && <form className="flex gap-2" action="/admin/reports" method="get"><input name="report" type="hidden" defaultValue={selected.id} /><input name="from" type="hidden" defaultValue={from} /><input name="to" type="hidden" defaultValue={to} /><input aria-label="Search student or invoice" className="h-9 w-56 rounded-lg border border-slate-200 px-3 text-xs outline-none focus:border-indigo-400" defaultValue={params.q} name="q" placeholder="Student or invoice number" /><button className="h-9 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700" type="submit">Search</button></form>}
+        {(selected.id === "statement" || selected.id === "invoices") && <form className="flex gap-2" action="/admin/reports" method="get"><input name="report" type="hidden" defaultValue={selected.id} /><input name="from" type="hidden" defaultValue={from} /><input name="to" type="hidden" defaultValue={to} />{studentIdFilter && <input name="studentId" type="hidden" defaultValue={studentIdFilter} />}<input aria-label="Search student or invoice" className="h-9 w-56 rounded-lg border border-slate-200 px-3 text-xs outline-none focus:border-indigo-400" defaultValue={params.q} name="q" placeholder="Student or invoice number" /><button className="h-9 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-700" type="submit">Search</button></form>}
       </div>
 
       {selected.id === "invoices" && <><div className="grid gap-3 p-4 sm:grid-cols-3"><Metric label="Billed" value={money(billed)} tone="blue" /><Metric label="Received" value={money(paid)} tone="green" /><Metric label="Outstanding" value={money(balance)} tone="amber" /></div><InvoiceTable invoices={searchedInvoices} /></>}
       {selected.id === "statement" && <><div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3 text-xs text-slate-500">Opening and closing balances use recorded payments and invoice balances. Older invoices marked paid before receipting was added are treated as settled.</div><div className="grid gap-3 p-4 sm:grid-cols-4"><Metric label="Opening balance" value={money(statementRows.reduce((sum, row) => sum + row.opening, 0))} tone="slate" /><Metric label="Billed" value={money(statementRows.reduce((sum, row) => sum + row.billed, 0))} tone="blue" /><Metric label="Received" value={money(statementRows.reduce((sum, row) => sum + row.received, 0))} tone="green" /><Metric label="Closing balance" value={money(statementRows.reduce((sum, row) => sum + row.closing, 0))} tone="amber" /></div><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] text-slate-500"><tr><th className="px-4 py-3">Student</th><th className="px-4 py-3">Opening</th><th className="px-4 py-3">Billed</th><th className="px-4 py-3">Received</th><th className="px-4 py-3">Closing</th></tr></thead><tbody className="divide-y divide-slate-100">{statementRows.map((row) => <tr key={row.id}><td className="px-4 py-3"><Link className="font-medium text-indigo-700" href={`/admin/students/${row.id}`}>{row.name}</Link><span className="block text-xs text-slate-400">{row.admission}</span></td><td className="px-4 py-3">{money(row.opening)}</td><td className="px-4 py-3">{money(row.billed)}</td><td className="px-4 py-3 text-emerald-700">{money(row.received)}</td><td className="px-4 py-3 font-semibold">{money(row.closing)}</td></tr>)}{!statementRows.length && <tr><td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={5}>No student statements for this period.</td></tr>}</tbody></table></div></>}
       {selected.id === "aging" && <div className="p-4 sm:p-5"><p className="mb-4 text-xs text-slate-500">As of {dateLabel(asOf)} · Unpaid balances are aged from invoice date.</p><div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><Metric label="Total outstanding" value={money(agedInvoices.reduce((sum, invoice) => sum + Number(invoice.amount), 0))} tone="red" />{buckets.map((bucket) => <Metric key={bucket.label} label={bucket.label} value={money(bucket.invoices.reduce((sum, invoice) => sum + Number(invoice.amount), 0))} tone="slate" />)}</div><InvoiceTable invoices={agedInvoices} /></div>}
-      {selected.id === "cashbook" && <><div className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">Cash movement from recorded fee payments and operating expenses.</div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Money in" value={money(receivedInPeriod)} tone="green" /><Metric label="Money out" value={money(expenseTotal)} tone="red" /><Metric label="Net cash movement" value={money(operatingSurplus)} tone={operatingSurplus >= 0 ? "slate" : "red"} /><Metric label="Transactions" value={String(paymentsInPeriod.length + expensesInPeriod.length)} tone="blue" /></div><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Receipts</h3><PaymentTable rows={paymentsInPeriod} /><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Expenses</h3><ExpenseTable rows={expensesInPeriod} /></>}
-      {selected.id === "financial" && <ProfitLossReport income={receivedInPeriod} expensesByCategory={expenseTotalsByCategory} expenseRows={expensesInPeriod} expenseTotal={expenseTotal} net={operatingSurplus} outstanding={balance} feeItemTotals={feeItemTotals} />}
+      {selected.id === "cashbook" && <><div className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">Cash movement from invoice receipts, student activity collections, school project sales, and operating expenses.</div><div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Money in" value={money(totalIncome)} tone="green" /><Metric label="Money out" value={money(expenseTotal)} tone="red" /><Metric label="Net cash movement" value={money(operatingSurplus)} tone={operatingSurplus >= 0 ? "slate" : "red"} /><Metric label="Transactions" value={String(paymentsInPeriod.length + activityPaymentsInPeriod.length + productSalesInPeriod.length + expensesInPeriod.length)} tone="blue" /></div><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Invoice fee receipts</h3><PaymentTable rows={paymentsInPeriod} /><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Student activity payments</h3><ActivityPaymentTable rows={activityPaymentsInPeriod} /><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">School project sales</h3><ProductSalesTable rows={productSalesInPeriod} /><h3 className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-800">Expenses</h3><ExpenseTable rows={expensesInPeriod} /></>}
+      {selected.id === "financial" && <ProfitLossReport feeIncome={receivedInPeriod} activityIncome={activityIncome} activityRows={activityPaymentsInPeriod} projectSales={salesTotalsByProject} productRows={productSalesInPeriod} totalIncome={totalIncome} expensesByCategory={expenseTotalsByCategory} expenseRows={expensesInPeriod} expenseTotal={expenseTotal} net={operatingSurplus} outstanding={balance} feeItemTotals={feeItemTotals} />}
       <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-4 py-3 text-xs text-slate-500"><span>{rangedInvoices.length} invoice records in selected period</span><Link className="inline-flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-800" href="/admin/invoices"><ArrowLeft className="size-3" />Invoices</Link></div>
     </section>
   </StudentsShell>;

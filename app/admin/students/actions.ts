@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import {
   classes,
+  parents,
   studentClassEnrollments,
+  studentParents,
   students,
   terms,
 } from "@/db/schema";
@@ -87,10 +89,21 @@ export async function createStudent(formData: FormData) {
   const lastName = readText(formData, "lastName");
   const admissionNumber = readText(formData, "admissionNumber");
   const dateOfBirth = readText(formData, "dateOfBirth");
+  const parentFirstName = readText(formData, "parentFirstName");
+  const parentLastName = readText(formData, "parentLastName");
+  const parentEmail = readText(formData, "parentEmail");
+  const parentPhone = readText(formData, "parentPhone");
+  const hasParentDetails = Boolean(parentFirstName || parentLastName || parentEmail || parentPhone);
   const { selection, valid } = await readEnrollmentSelection(formData);
 
   if (!firstName || !lastName || !admissionNumber) {
     redirect(newStudentPath("error=required-fields"));
+  }
+  if (hasParentDetails && (!parentFirstName || !parentLastName)) {
+    redirect(newStudentPath("error=parent-name-required"));
+  }
+  if (parentEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parentEmail)) {
+    redirect(newStudentPath("error=invalid-parent-email"));
   }
   if (dateOfBirth && !isValidDate(dateOfBirth)) {
     redirect(newStudentPath("error=invalid-date"));
@@ -119,6 +132,16 @@ export async function createStudent(formData: FormData) {
         classId: selection.classId,
         termId: selection.termId,
       });
+    }
+
+    if (hasParentDetails) {
+      const [parent] = await tx.insert(parents).values({
+        firstName: parentFirstName,
+        lastName: parentLastName,
+        email: parentEmail || null,
+        phone: parentPhone || null,
+      }).returning({ id: parents.id });
+      if (parent) await tx.insert(studentParents).values({ studentId: student.id, parentId: parent.id });
     }
 
     return student.id;

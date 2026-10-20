@@ -1,4 +1,7 @@
 import { AuthProvider } from "@/components/session-provider";
+import { SystemFeedback } from "@/components/system-feedback";
+import { Suspense } from "react";
+import "react-toastify/dist/ReactToastify.css";
 import "./globals.css";
 import type { Metadata } from "next";
 
@@ -24,7 +27,7 @@ export default function RootLayout({
         />
       </head>
       <body style={{ margin: 0, padding: 0 }}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>{children}<Suspense fallback={null}><SystemFeedback /></Suspense></AuthProvider>
       </body>
     </html>
   );

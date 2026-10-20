@@ -321,7 +321,7 @@ export default async function StudentsPage({
             ) : (
               <p className="rounded-lg bg-slate-50 px-3 py-5 text-center text-xs text-slate-500">No class placements in this selection.</p>
             )}
-            <Link className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800" href="/admin/academic/setup#class">Manage classes <ChevronRight className="size-3" /></Link>
+            <Link className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800" href="/admin/classes">Manage classes <ChevronRight className="size-3" /></Link>
           </section>
 
           <section className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">

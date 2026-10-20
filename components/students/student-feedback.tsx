@@ -14,10 +14,15 @@ const notices: Record<string, string> = {
   "user-updated": "User account updated.",
   "user-deleted": "User account deleted.",
   "expense-recorded": "Expense recorded and included in the financial reports.",
+  "product-created": "Product added to the school project shop.",
+  "product-sale-recorded": "Sale recorded and inventory updated.",
+  "product-restocked": "Inventory stock has been increased.",
 };
 
 const errors: Record<string, string> = {
   "required-fields": "Enter the student's first name, last name, and admission number.",
+  "parent-name-required": "Enter both the parent or guardian's first and last name, or leave all parent fields blank.",
+  "invalid-parent-email": "Enter a valid parent or guardian email address.",
   "invalid-date": "Enter a valid date of birth.",
   "invalid-enrollment": "Choose a valid class and term from the same academic year.",
   "duplicate-admission": "That admission number is already in use.",
@@ -55,6 +60,17 @@ const errors: Record<string, string> = {
   "last-admin": "The school must keep at least one administrator account.",
   "user-not-found": "That user account no longer exists.",
   "invalid-expense": "Enter a valid date, category, description, positive amount, and payment method for this expense.",
+  "invalid-bulk-invoice": "Choose a valid academic year and matching term, then enter valid invoice and due dates.",
+  "invalid-bulk-template": "Choose an active general fee template for the selected academic year.",
+  "invalid-bulk-fees": "Choose a valid fee template or select at least one fee item with a positive amount.",
+  "empty-bulk-roster": "No students are enrolled in the selected grade or school for that term.",
+  "bulk-roster-too-large": "This invoice batch exceeds the 2,000 student limit. Split it into smaller grade batches.",
+  "invalid-product": "Enter a product, project, valid price, and nonnegative stock quantity.",
+  "duplicate-product-sku": "That product SKU is already in use.",
+  "invalid-product-sale": "Choose a valid product, quantity, payment method, and sale date.",
+  "insufficient-product-stock": "The selected quantity is greater than the available stock.",
+  "product-not-found": "The selected product is no longer available.",
+  "invalid-stock-adjustment": "Enter a positive whole number for the stock adjustment.",
 };
 
 export function StudentFeedback({

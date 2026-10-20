@@ -18,6 +18,8 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import { createFeeCatalogItem, createInvoice } from "@/app/admin/invoices/actions";
+import { AlertDialogForm } from "@/components/forms/alert-dialog-form";
+import { toast } from "react-toastify";
 
 type YearOption = { id: number; name: string; isCurrent: boolean };
 type TermOption = { id: number; name: string; academicYearId: number };
@@ -203,15 +205,18 @@ export function InvoiceCreateForm({
 
   function saveNewFee() {
     setFeeFeedback("");
+    const toastId = toast.loading("Adding fee item…");
     startCreatingFee(async () => {
       try {
         if (!newFeeName.trim() || !/^\d{1,10}(\.\d{1,2})?$/.test(newFeeAmount.trim())) {
           setFeeFeedback("Enter a fee name and a valid amount.");
+          toast.update(toastId, { render: "Enter a fee name and a valid amount.", type: "error", isLoading: false, autoClose: 5000 });
           return;
         }
         const result = await createFeeCatalogItem(newFeeName, newFeeDescription, newFeeAmount);
         if (!result.ok) {
           setFeeFeedback(result.error);
+          toast.update(toastId, { render: result.error, type: "error", isLoading: false, autoClose: 5000 });
           return;
         }
         const updatedFees = feeItems.some((fee) => fee.id === result.item.id)
@@ -230,14 +235,19 @@ export function InvoiceCreateForm({
         setNewFeeDescription("");
         setNewFeeAmount("");
         setFeeFeedback(result.alreadyExists ? "Fee already exists and has been selected." : "Fee created and added.");
+        toast.update(toastId, { render: result.alreadyExists ? "Fee already exists." : "Fee item added.", type: "success", isLoading: false, autoClose: 3500 });
       } catch (error) {
-        if (error instanceof Error) setFeeFeedback(error.message);
+        if (error instanceof Error) {
+          setFeeFeedback(error.message);
+          toast.update(toastId, { render: error.message, type: "error", isLoading: false, autoClose: 5000 });
+        }
         else throw error;
       }
     });
   }
 
   return (
+    <AlertDialogForm title="Create invoice" description="Choose a student, term, and fee items to prepare an invoice." triggerLabel="Create invoice">
     <form action={createInvoice} className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
       <input name="academicYearId" type="hidden" value={academicYearId} />
       <input name="termId" type="hidden" value={termId} />
@@ -524,6 +534,7 @@ export function InvoiceCreateForm({
         </section>
       </aside>
     </form>
+    </AlertDialogForm>
   );
 }
 

@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { expenses } from "@/db/schema";
 import { StudentFeedback } from "@/components/students/student-feedback";
 import { StudentsShell } from "@/components/students/students-shell";
+import { AlertDialogForm } from "@/components/forms/alert-dialog-form";
 import { requireAdminSession } from "@/lib/admin";
 
 function isDate(value?: string) {
@@ -45,7 +46,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     <StudentFeedback error={params.error} notice={params.notice} />
 
     <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-4 flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Plus className="size-4" /></span><div><h2 className="text-sm font-semibold text-slate-900">Record an expense</h2><p className="mt-0.5 text-[11px] text-slate-500">Enter the amount paid by the school and its expense category.</p></div></div>
+      <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-slate-900">Record expenses</h2><p className="mt-0.5 text-[11px] text-slate-500">Track operating costs and school spending.</p></div><AlertDialogForm title="Record an expense" description="Enter the amount paid by the school and its expense category." triggerLabel="Add expense">
       <form action={recordExpense} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-xs font-medium text-slate-700">Date<input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" defaultValue={defaultDate} max={today} name="expenseDate" required type="date" /></label>
         <label className="text-xs font-medium text-slate-700">Category<input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" list="expense-categories" maxLength={60} name="category" placeholder="e.g. Utilities" required /><datalist id="expense-categories">{["Salaries", "Rent", "Utilities", "Learning materials", "Transport", "Maintenance", "Food", "Insurance", "Other"].map((category) => <option key={category} value={category} />)}</datalist></label>
@@ -54,8 +55,9 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         <label className="text-xs font-medium text-slate-700">Vendor / payee<input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" maxLength={120} name="vendor" placeholder="Optional" /></label>
         <label className="text-xs font-medium text-slate-700">Payment method<select className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm" defaultValue="cash" name="method"><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="ecocash">EcoCash</option><option value="card">Card</option><option value="other">Other</option></select></label>
         <label className="text-xs font-medium text-slate-700">Reference<input className="mt-1.5 block h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" maxLength={100} name="reference" placeholder="Receipt or transaction number" /></label>
-        <div className="flex items-end"><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700"><Plus className="size-4" />Save expense</button></div>
+        <div className="flex items-end"><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-semibold text-white hover:bg-indigo-700" type="submit">Save expense</button></div>
       </form>
+      </AlertDialogForm></div>
     </section>
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

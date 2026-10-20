@@ -155,6 +155,19 @@ export const payments = pgTable("payments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const studentActivityPayments = pgTable("student_activity_payments", {
+  id: serial("id").primaryKey(),
+  studentId: integer("student_id").notNull().references(() => students.id, { onDelete: "restrict" }),
+  activity: text("activity").notNull(),
+  description: text("description"),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  method: paymentMethodEnum("method").notNull(),
+  reference: text("reference").notNull().unique(),
+  receivedAt: date("received_at", { mode: "string" }).notNull(),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const expenses = pgTable("expenses", {
   id: serial("id").primaryKey(),
   expenseDate: date("expense_date", { mode: "string" }).notNull(),
@@ -164,6 +177,34 @@ export const expenses = pgTable("expenses", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   method: paymentMethodEnum("method").notNull(),
   reference: text("reference"),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const products = pgTable("products", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  projectName: text("project_name").notNull(),
+  sku: text("sku").unique(),
+  description: text("description"),
+  unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
+  stock: integer("stock").default(0).notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const productSales = pgTable("product_sales", {
+  id: serial("id").primaryKey(),
+  reference: text("reference").notNull().unique(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "restrict" }),
+  productName: text("product_name").notNull(),
+  projectName: text("project_name").notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  customer: text("customer"),
+  method: paymentMethodEnum("method").notNull(),
+  soldAt: date("sold_at", { mode: "string" }).notNull(),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -250,6 +291,7 @@ export const studentsRelations = relations(students, ({ many }) => ({
   studentParents: many(studentParents),
   classEnrollments: many(studentClassEnrollments),
   invoices: many(invoices),
+  activityPayments: many(studentActivityPayments),
 }));
 
 export const studentParentsRelations = relations(studentParents, ({ one }) => ({
@@ -318,6 +360,12 @@ export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
 export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;
+export type StudentActivityPayment = typeof studentActivityPayments.$inferSelect;
+export type NewStudentActivityPayment = typeof studentActivityPayments.$inferInsert;
+export type Product = typeof products.$inferSelect;
+export type NewProduct = typeof products.$inferInsert;
+export type ProductSale = typeof productSales.$inferSelect;
+export type NewProductSale = typeof productSales.$inferInsert;
 export type FeeCatalogItem = typeof feeCatalogItems.$inferSelect;
 export type NewFeeCatalogItem = typeof feeCatalogItems.$inferInsert;
 export type InvoiceItem = typeof invoiceItems.$inferSelect;

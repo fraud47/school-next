@@ -40,7 +40,7 @@ export function ClassPlacementFields({
       <label className="block text-sm font-medium text-slate-700">
         <span className="flex items-center justify-between gap-2">
           Class and grade
-          <Link className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800" href="/admin/academic/setup#class">
+          <Link className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800" href="/admin/classes">
             <Plus className="size-3.5" /> Add class
           </Link>
         </span>
